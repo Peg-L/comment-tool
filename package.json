@@ -1,0 +1,17 @@
+{
+  "name": "comment-tool",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "generate": "node build.js && node generate-bookmarklet.js",
+    "test": "vitest run",
+    "dev": "node build.js --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "jsdom": "^25.0.0",
+    "vitest": "^2.1.0"
+  }
+}
