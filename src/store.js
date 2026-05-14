@@ -61,12 +61,13 @@ export class CommentStore {
     return this._data.comments;
   }
 
-  add(selector, elementLabel, text) {
+  add(selector, elementLabel, text, meta = {}) {
     const comment = {
       id: generateId(),
       selector,
       elementLabel,
       text,
+      meta,
       createdAt: new Date().toISOString(),
     };
     this._data.comments.push(comment);

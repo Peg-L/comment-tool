@@ -1,0 +1,53 @@
+<h2>這個工具要以什麼形式交付？</h2>
+<p class="subtitle">選擇一個最符合你使用情境的方案</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Bookmarklet（書籤工具）</h3>
+      <p>拖一個書籤到瀏覽器工具列，點擊後就能在任何網頁上啟動標註模式。無需安裝，跨瀏覽器支援。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>優點</h4><ul><li>零安裝，即點即用</li><li>可在任何網站上使用</li></ul></div>
+        <div class="cons"><h4>限制</h4><ul><li>部分網站的 CSP 政策可能阻擋</li><li>功能較受限</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>獨立 Web App（iframe 模式）</h3>
+      <p>一個獨立的網頁應用程式，透過 iframe 或 side-by-side 預覽目標頁面並進行標註。所有標註資料存在自己的後端。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>優點</h4><ul><li>完全掌控資料與 UI</li><li>多人共享最容易實作</li><li>不受目標網站限制</li></ul></div>
+        <div class="cons"><h4>限制</h4>
+          <ul><li>跨域 iframe 限制（X-Frame-Options）</li><li>需要獨立部署</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Chrome Extension（仍然是最完整的）</h3>
+      <p>雖然你說不一定要做成 Chrome 插件，但它能直接在真實頁面上標註，不受 iframe 跨域限制，功能最完整。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>優點</h4><ul><li>直接操作真實 DOM</li><li>最接近 UISelector2AI 體驗</li></ul></div>
+        <div class="cons"><h4>限制</h4><ul><li>需要安裝，有審核流程</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="d" onclick="toggleSelect(this)">
+    <div class="letter">D</div>
+    <div class="content">
+      <h3>JavaScript 注入腳本（Userscript / Tampermonkey）</h3>
+      <p>類似 Bookmarklet 但更持久，透過 Tampermonkey 等工具自動在目標網站注入標註工具列。</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>優點</h4><ul><li>比 Bookmarklet 持久、功能更強</li><li>無需上架審核</li></ul></div>
+        <div class="cons"><h4>限制</h4><ul><li>需要安裝 Tampermonkey</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>

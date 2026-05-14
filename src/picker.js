@@ -61,8 +61,19 @@ export class ElementPicker {
     }
     const selector = getUniqueSelector(el, this._doc);
     const label = getShortLabel(selector);
+
+    // Collect element metadata to help disambiguate in the prompt
+    const tagName = el.tagName;
+    const innerText = (el.innerText || el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 120);
+    const attrs = {};
+    if (el.alt) attrs.alt = el.alt;
+    if (el.getAttribute('aria-label')) attrs['aria-label'] = el.getAttribute('aria-label');
+    if (el.id) attrs.id = el.id;
+    if (el.getAttribute('placeholder')) attrs.placeholder = el.getAttribute('placeholder');
+    const rect = el.getBoundingClientRect();
+
     this.stop();
-    if (this._onPick) this._onPick({ selector, label, element: el });
+    if (this._onPick) this._onPick({ selector, label, element: el, meta: { tagName, innerText, attrs }, rect });
   }
 
   _onKeyDown(e) {

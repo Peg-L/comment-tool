@@ -1,20 +1,38 @@
 // src/exporter.js
 export class Exporter {
   /**
-   * Format comments as an AI-ready prompt string.
+   * Format comments as an AI-ready prompt, matching UISelector2AI structure.
    */
   static toPrompt(url, comments) {
-    if (comments.length === 0) {
-      return `以下是審核人員針對 ${url} 的標註意見：\n\n（尚無標註）`;
-    }
-    const lines = comments.map((c, i) =>
-      `[${i + 1}] 元素：${c.elementLabel}\n    意見：${c.text}`
-    );
-    return [
-      `以下是審核人員針對 ${url} 的標註意見，請根據這些意見給出改善建議：`,
+    const lines = [
+      '# Webpage Context',
+      `URL: ${url}`,
       '',
-      ...lines,
-    ].join('\n');
+      '# Annotations',
+    ];
+
+    if (!comments.length) {
+      lines.push('', '（尚無標註）');
+      return lines.join('\n');
+    }
+
+    comments.forEach((c, i) => {
+      const meta  = c.meta  || {};
+      const attrs = meta.attrs || {};
+
+      lines.push('');
+      lines.push(`## Annotation ${i + 1}`);
+      lines.push(`**Target**: \`${c.selector}\``);
+      if (meta.tagName)           lines.push(`**TagName**: ${meta.tagName}`);
+      if (attrs.id)               lines.push(`**ID**: ${attrs.id}`);
+      if (attrs.alt)              lines.push(`**Alt**: ${attrs.alt}`);
+      if (attrs['aria-label'])    lines.push(`**Aria Label**: ${attrs['aria-label']}`);
+      if (attrs.placeholder)      lines.push(`**Placeholder**: ${attrs.placeholder}`);
+      if (meta.innerText)         lines.push(`**Inner Content**: ${meta.innerText}`);
+      lines.push(`**Instruction**: ${c.text}`);
+    });
+
+    return lines.join('\n');
   }
 
   /**
@@ -37,3 +55,4 @@ export class Exporter {
     }
   }
 }
+

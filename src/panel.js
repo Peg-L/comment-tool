@@ -15,11 +15,14 @@ const CSS = `
   width: 320px;
   height: 100vh;
   z-index: 2147483647;
+  pointer-events: none;
+  overflow: visible;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   font-size: 13px;
   line-height: 1.5;
 }
 .panel {
+  pointer-events: all;
   width: 100%;
   height: 100%;
   background: #1e1e2e;
@@ -29,8 +32,9 @@ const CSS = `
   box-shadow: -4px 0 24px rgba(0,0,0,0.5);
   transition: transform 0.2s ease;
 }
-.panel.collapsed { transform: translateX(calc(100% - 28px)); }
+.panel.collapsed { transform: translateX(100%); }
 .toggle-btn {
+  pointer-events: all;
   position: absolute;
   left: -28px;
   top: 50%;
@@ -117,7 +121,7 @@ const CSS = `
 }
 .comment-item:hover { background: #313244; }
 .comment-item.missing { opacity: 0.5; }
-.comment-header { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; }
+.comment-header { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
 .badge {
   flex-shrink: 0;
   width: 18px;
@@ -129,6 +133,15 @@ const CSS = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+.comment-tag {
+  font-size: 10px;
+  background: #1e1e3a;
+  color: #89b4fa;
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-family: monospace;
+  flex-shrink: 0;
 }
 .comment-label {
   font-size: 11px;
@@ -144,9 +157,19 @@ const CSS = `
   color: #cdd6f4;
   word-break: break-word;
   padding-left: 24px;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
-.comment-actions { padding-left: 24px; }
+.comment-inner {
+  font-size: 11px;
+  color: #6c7086;
+  padding-left: 24px;
+  margin-bottom: 4px;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.comment-actions { padding-left: 24px; display: flex; gap: 4px; }
 .btn-del {
   padding: 2px 8px;
   font-size: 11px;
@@ -158,6 +181,17 @@ const CSS = `
   transition: background 0.1s;
 }
 .btn-del:hover { background: #f38ba8; color: #1e1e2e; }
+.btn-edit-item {
+  padding: 2px 8px;
+  font-size: 11px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  background: rgba(137,180,250,0.15);
+  color: #89b4fa;
+  transition: background 0.1s;
+}
+.btn-edit-item:hover { background: #89b4fa; color: #1e1e2e; }
 .empty {
   text-align: center;
   padding: 40px 16px;
@@ -181,24 +215,19 @@ const CSS = `
   z-index: 1;
 }
 .toast.show { opacity: 1; }
-.dialog-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.55);
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+/* Floating dialog — no backdrop, positioned near the element */
 .dialog {
+  position: fixed;
+  pointer-events: all;
   background: #1e1e2e;
-  border: 1px solid #313244;
+  border: 1px solid #45475a;
   border-radius: 10px;
-  padding: 18px;
-  width: 290px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  padding: 16px;
+  width: 280px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+  z-index: 3;
 }
-.dialog h3 { margin: 0 0 10px; font-size: 14px; color: #cdd6f4; }
+.dialog h3 { margin: 0 0 10px; font-size: 14px; color: #cdd6f4; font-weight: 600; }
 .dialog textarea {
   width: 100%;
   box-sizing: border-box;
@@ -214,7 +243,13 @@ const CSS = `
   outline: none;
 }
 .dialog textarea:focus { border-color: #89b4fa; }
-.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+.dialog-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.dialog-actions .spacer { flex: 1; }
 `;
 
 export class PanelUI {
@@ -231,6 +266,8 @@ export class PanelUI {
 
   on(event, cb) { this._cbs[event] = cb; return this; }
   _emit(event, ...args) { if (this._cbs[event]) this._cbs[event](...args); }
+
+  get isCollapsed() { return this._collapsed; }
 
   mount() {
     if (this._host) return;
@@ -254,9 +291,9 @@ export class PanelUI {
     const p = this._panel;
     p.innerHTML = '';
 
-    // Toggle
+    // Toggle button (always visible, shows shortcut hint)
     const toggle = this._el('button', 'toggle-btn', this._collapsed ? '◀' : '▶');
-    toggle.title = this._collapsed ? '展開' : '收起';
+    toggle.title = '收起/展開 (Alt+C)';
     toggle.addEventListener('click', () => this._toggleCollapse());
     p.appendChild(toggle);
 
@@ -311,6 +348,12 @@ export class PanelUI {
     if (toggle) toggle.textContent = this._collapsed ? '◀' : '▶';
   }
 
+  /** Public: toggle collapse state (used by keyboard shortcut) */
+  toggleCollapse() { this._toggleCollapse(); }
+
+  /** Public: expand panel if collapsed */
+  open() { if (this._collapsed) this._toggleCollapse(); }
+
   refresh(comments, isMissing) {
     if (!this._listEl) return;
     this._listEl.innerHTML = '';
@@ -322,24 +365,42 @@ export class PanelUI {
 
     comments.forEach((c, i) => {
       const missing = isMissing(c.id);
+      const meta = c.meta || {};
       const item = this._el('div', 'comment-item' + (missing ? ' missing' : ''));
 
+      // Header: badge + tagName chip + selector label
       const hdr = this._el('div', 'comment-header');
       const badge = this._el('span', 'badge', String(i + 1));
       badge.style.background = getColor(i);
+      hdr.appendChild(badge);
+      if (meta.tagName) hdr.appendChild(this._el('span', 'comment-tag', meta.tagName));
       const label = this._el('span', 'comment-label',
         missing ? `${c.elementLabel} ⚠ 元素已不存在` : c.elementLabel);
       label.title = c.selector;
-      hdr.append(badge, label);
+      hdr.appendChild(label);
 
-      const text = this._el('div', 'comment-text', c.text);
+      // Comment text
+      const textEl = this._el('div', 'comment-text', c.text);
 
+      item.append(hdr, textEl);
+
+      // Inner content snippet to help identify the element
+      if (meta.innerText) {
+        const snippet = meta.innerText.slice(0, 60);
+        item.appendChild(this._el('div', 'comment-inner',
+          `"${snippet}${meta.innerText.length > 60 ? '…' : ''}"`));
+      }
+
+      // Actions
       const actions = this._el('div', 'comment-actions');
-      const del = this._el('button', 'btn-del', '刪除');
-      del.addEventListener('click', (e) => { e.stopPropagation(); this._emit('delete', c.id); });
-      actions.appendChild(del);
+      const editBtn = this._el('button', 'btn-edit-item', '編輯');
+      editBtn.addEventListener('click', (e) => { e.stopPropagation(); this._emit('edit', c.id); });
+      const delBtn = this._el('button', 'btn-del', '刪除');
+      delBtn.addEventListener('click', (e) => { e.stopPropagation(); this._emit('delete', c.id); });
+      actions.append(editBtn, delBtn);
+      item.appendChild(actions);
 
-      item.append(hdr, text, actions);
+      // Click item → scroll to element
       item.addEventListener('click', () => {
         const el = this._doc.querySelector(c.selector);
         if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -366,28 +427,59 @@ export class PanelUI {
     t._timer = setTimeout(() => t.classList.remove('show'), 2200);
   }
 
-  promptComment() {
-    return new Promise((resolve) => {
-      const overlay = this._el('div', 'dialog-overlay');
-      const dialog  = this._el('div', 'dialog');
-      const h3 = this._el('h3', null, '新增標註');
+  /**
+   * Show a floating comment dialog positioned near (anchorX, anchorY).
+   * No full-page backdrop — small card only.
+   * @returns {Promise<{action:'save'|'delete'|'cancel', text?:string}>}
+   */
+  showDialogAt(anchorX, anchorY, opts = {}) {
+    const { existing = '', showDelete = false } = opts;
+    return new Promise(resolve => {
+      const vw = this._doc.defaultView.innerWidth;
+      const vh = this._doc.defaultView.innerHeight;
+      const W = 280, H_EST = 190, pad = 12;
+
+      // Position near anchor, clamped to viewport
+      let left = anchorX + pad;
+      let top  = anchorY + pad;
+      if (left + W  > vw - pad) left = anchorX - W - pad;
+      if (left < pad) left = pad;
+      if (top  + H_EST > vh - pad) top = anchorY - H_EST - pad;
+      if (top  < pad) top = pad;
+
+      const dialog = this._el('div', 'dialog');
+      dialog.style.left = `${left}px`;
+      dialog.style.top  = `${top}px`;
+
+      const h3 = this._el('h3', null, existing ? '編輯標註' : '新增標註');
       const ta = this._doc.createElement('textarea');
-      ta.placeholder = '輸入你的意見... (Ctrl+Enter 確認)';
+      ta.value = existing;
+      ta.placeholder = '輸入意見… (Ctrl+Enter 確認，Esc 取消)';
 
       const actions = this._el('div', 'dialog-actions');
-      const cancel  = this._btn('取消',  'btn btn-neutral', () => { overlay.remove(); resolve(null); });
-      const confirm = this._btn('確認', 'btn btn-primary', () => {
-        const v = ta.value.trim(); overlay.remove(); resolve(v || null);
-      });
-      actions.append(cancel, confirm);
-      dialog.append(h3, ta, actions);
-      overlay.appendChild(dialog);
-      this._shadow.appendChild(overlay);
-      ta.focus();
 
-      ta.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) confirm.click();
-        if (e.key === 'Escape') cancel.click();
+      const done = (result) => { dialog.remove(); resolve(result); };
+
+      if (showDelete) {
+        const delBtn = this._btn('刪除', 'btn-danger', () => done({ action: 'delete' }));
+        const spacer = this._el('span', 'spacer');
+        actions.append(delBtn, spacer);
+      }
+      const cancelBtn = this._btn('取消', 'btn-neutral', () => done({ action: 'cancel' }));
+      const saveBtn   = this._btn('儲存', 'btn-primary', () => {
+        const text = ta.value.trim();
+        done({ action: text ? 'save' : 'cancel', text });
+      });
+      actions.append(cancelBtn, saveBtn);
+
+      dialog.append(h3, ta, actions);
+      this._shadow.appendChild(dialog);
+      requestAnimationFrame(() => ta.focus());
+
+      ta.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) saveBtn.click();
+        if (e.key === 'Escape') cancelBtn.click();
+        e.stopPropagation();
       });
     });
   }
@@ -395,4 +487,4 @@ export class PanelUI {
   unmount() {
     if (this._host) { this._host.remove(); this._host = null; this._shadow = null; }
   }
-}
+}

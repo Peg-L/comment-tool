@@ -17,7 +17,10 @@ export class OverlayManager {
     this._badges = new Map(); // id → { badgeEl, element, missing }
     this._observer = null;
     this._onReposition = this._reposition.bind(this);
+    this._onBadgeClick = null;
   }
+
+  setBadgeClickHandler(fn) { this._onBadgeClick = fn; }
 
   renderAll(comments) {
     this.clearAll();
@@ -58,10 +61,20 @@ export class OverlayManager {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      pointerEvents: 'none',
+      pointerEvents: 'all',
+      cursor: 'pointer',
       boxShadow: '0 1px 4px rgba(0,0,0,0.4)',
     });
     badge.textContent = String(num);
+    badge.title = comment.text.slice(0, 60);
+    badge.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      if (this._onBadgeClick) {
+        const r = badge.getBoundingClientRect();
+        this._onBadgeClick(comment.id, r.right, r.bottom);
+      }
+    });
     this._doc.body.appendChild(badge);
     this._badges.set(comment.id, { badgeEl: badge, element: el, missing: false });
     this._positionBadge(badge, el);

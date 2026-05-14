@@ -57,6 +57,33 @@ import { PanelUI } from './panel.js';
     refresh();
   }
 
+  // ── Edit helper (shared by badge click + sidebar edit button) ─────────────
+  async function openEditDialog(id, anchorX, anchorY) {
+    const comment = store.getAll().find(c => c.id === id);
+    if (!comment) return;
+
+    let x = anchorX, y = anchorY;
+    if (x == null || y == null) {
+      const el = doc.querySelector(comment.selector);
+      if (el) {
+        const r = el.getBoundingClientRect();
+        x = r.right; y = r.top;
+      } else {
+        x = doc.defaultView.innerWidth / 2;
+        y = doc.defaultView.innerHeight / 2;
+      }
+    }
+
+    const result = await panel.showDialogAt(x, y, { existing: comment.text, showDelete: true });
+    if (result.action === 'save' && result.text) {
+      store.update(id, result.text);
+      refresh();
+    } else if (result.action === 'delete') {
+      store.delete(id);
+      refresh();
+    }
+  }
+
   // ── Panel wiring ──────────────────────────────────────────────────────────
   panel
     .on('switchProject', switchProject)
@@ -68,17 +95,20 @@ import { PanelUI } from './panel.js';
       }
       panel.setPickActive(true);
       picker.start({
-        onPick: async ({ selector, label }) => {
+        onPick: async ({ selector, label, meta, rect }) => {
           panel.setPickActive(false);
-          const text = await panel.promptComment();
-          if (text) {
-            store.add(selector, label, text);
+          const x = rect ? rect.right : doc.defaultView.innerWidth / 2;
+          const y = rect ? rect.top  : doc.defaultView.innerHeight / 2;
+          const result = await panel.showDialogAt(x, y, { existing: '', showDelete: false });
+          if (result.action === 'save' && result.text) {
+            store.add(selector, label, result.text, meta);
             refresh();
           }
         },
         onCancel: () => panel.setPickActive(false),
       });
     })
+    .on('edit', (id) => openEditDialog(id))
     .on('delete', (id) => {
       store.delete(id);
       refresh();
@@ -112,6 +142,17 @@ import { PanelUI } from './panel.js';
       }
     });
 
+  // ── Badge click → edit dialog ─────────────────────────────────────────────
+  overlay.setBadgeClickHandler((id, x, y) => openEditDialog(id, x, y));
+
+  // ── Keyboard shortcut: Alt+C = toggle panel ───────────────────────────────
+  doc.addEventListener('keydown', (e) => {
+    if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.key.toLowerCase() === 'c') {
+      e.preventDefault();
+      panel.toggleCollapse();
+    }
+  });
+
   panel.mount();
   panel.setProject(project);
   refresh();
@@ -125,3 +166,4 @@ import { PanelUI } from './panel.js';
     },
   };
 })();
+
