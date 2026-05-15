@@ -1,6 +1,18 @@
 // src/store.js
 const STORAGE_PREFIX = 'comment-tool:';
 const CURRENT_PROJECT_KEY = 'comment-tool:__current-project__';
+const PROJECT_LIST_KEY = 'comment-tool:__project-list__';
+
+function _getProjectList() {
+  try {
+    const raw = localStorage.getItem(PROJECT_LIST_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function _saveProjectList(list) {
+  localStorage.setItem(PROJECT_LIST_KEY, JSON.stringify(list));
+}
 
 function generateId() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -14,19 +26,72 @@ export function setCurrentProject(name) {
   localStorage.setItem(CURRENT_PROJECT_KEY, name);
 }
 
+/** Add a named project to the persistent project list (no-op if already exists). */
+export function createProject(name) {
+  const list = _getProjectList();
+  if (!list.includes(name)) {
+    list.push(name);
+    _saveProjectList(list);
+  }
+}
+
 /** Return all distinct project names found in localStorage. */
 export function listProjects() {
-  const projects = new Set();
+  const projects = new Set(_getProjectList());
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
-    if (k && k.startsWith(STORAGE_PREFIX) && k !== CURRENT_PROJECT_KEY) {
-      // key format: comment-tool:<project>:<url>
+    if (
+      k &&
+      k.startsWith(STORAGE_PREFIX) &&
+      k !== CURRENT_PROJECT_KEY &&
+      k !== PROJECT_LIST_KEY
+    ) {
       const rest = k.slice(STORAGE_PREFIX.length);
       const sep = rest.indexOf(':');
       if (sep !== -1) projects.add(rest.slice(0, sep));
     }
   }
   return Array.from(projects).sort();
+}
+
+/**
+ * Return all pages (URLs) that have annotations under a project.
+ * @param {string} projectName
+ * @returns {Array<{url: string, path: string, count: number}>}
+ */
+export function listProjectPages(projectName) {
+  const prefix = `${STORAGE_PREFIX}${projectName}:`;
+  const pages = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(prefix)) {
+      const url = k.slice(prefix.length);
+      let path = url;
+      try {
+        const u = new URL(url);
+        path = u.pathname + (u.search || '');
+      } catch { /* keep raw url as path */ }
+      let count = 0;
+      try {
+        const data = JSON.parse(localStorage.getItem(k));
+        count = Array.isArray(data?.comments) ? data.comments.length : 0;
+      } catch { /* count stays 0 */ }
+      pages.push({ url, path, count });
+    }
+  }
+  return pages.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+/** Remove all localStorage entries belonging to a project. */
+export function deleteProject(name) {
+  const prefix = `${STORAGE_PREFIX}${name}:`;
+  const keys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(prefix)) keys.push(k);
+  }
+  keys.forEach(k => localStorage.removeItem(k));
+  _saveProjectList(_getProjectList().filter(p => p !== name));
 }
 
 export class CommentStore {
