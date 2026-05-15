@@ -1,5 +1,4 @@
-// src/index.js
-import { CommentStore, getCurrentProject, setCurrentProject, listProjects } from './store.js';
+import { CommentStore, getCurrentProject, setCurrentProject, listProjects, listProjectPages, createProject, deleteProject } from './store.js';
 import { ElementPicker } from './picker.js';
 import { OverlayManager } from './overlay.js';
 import { Exporter } from './exporter.js';
@@ -13,48 +12,41 @@ import { PanelUI } from './panel.js';
   }
 
   const doc = document;
-  const url = location.href;
 
-  // ── Project resolution ───────────────────────────────────────────────────
-  function askProject(current) {
-    const existing = listProjects();
-    let hint = '';
-    if (existing.length) hint = `\n\n現有專案：${existing.join('、')}`;
-    const name = doc.defaultView.prompt(
-      `請輸入專案名稱（用於隔離不同專案的標註）${hint}`,
-      current
-    );
-    return (name || '').trim();
+  // Detect shared data in URL hash and produce a clean URL for the store key
+  const sharedData = Exporter.decodeShareHash(location.hash);
+  let url;
+  if (location.hash.includes('__ct__=')) {
+    const newHash = location.hash.replace(/&?__ct__=[^&]*/g, '');
+    const base = location.href.split('#')[0];
+    url = (newHash && newHash !== '#') ? base + newHash : base;
+    try { history.replaceState(null, '', url); } catch (e) { /* ignore */ }
+  } else {
+    url = location.href;
   }
 
-  let project = getCurrentProject();
-  if (!project) {
-    project = askProject('');
-    if (!project) return; // user cancelled
-    setCurrentProject(project);
-  }
-
-  // ── Module init ───────────────────────────────────────────────────────────
-  let store   = new CommentStore(project, url);
+  // ── Module init (panel first — needed for project dialog) ─────────────────
   const picker  = new ElementPicker(doc);
   const overlay = new OverlayManager(doc);
   const panel   = new PanelUI(doc);
+  panel.mount();
+
+  // ── Project resolution ───────────────────────────────────────────────────
+  let project = getCurrentProject();
+  if (!project) {
+    project = 'default';
+    createProject(project);
+    setCurrentProject(project);
+  }
+
+  // ── Store ─────────────────────────────────────────────────────────────────
+  let store = new CommentStore(project, url);
+  panel.setProject(project);
 
   function refresh() {
     const comments = store.getAll();
     overlay.renderAll(comments);
     panel.refresh(comments, (id) => overlay.isMissing(id));
-  }
-
-  function switchProject() {
-    const newName = askProject(project);
-    if (!newName || newName === project) return;
-    overlay.clearAll();
-    project = newName;
-    setCurrentProject(project);
-    store = new CommentStore(project, url);
-    panel.setProject(project);
-    refresh();
   }
 
   // ── Edit helper (shared by badge click + sidebar edit button) ─────────────
@@ -86,7 +78,35 @@ import { PanelUI } from './panel.js';
 
   // ── Panel wiring ──────────────────────────────────────────────────────────
   panel
-    .on('switchProject', switchProject)
+    .on('flyoutOpen', () => {
+      const projects = listProjects();
+      const pagesMap = Object.fromEntries(
+        projects.map(p => [p, listProjectPages(p)])
+      );
+      panel.setFlyoutData(projects, pagesMap);
+    })
+    .on('navigateToPage', ({ url: destUrl, project: destProject }) => {
+      setCurrentProject(destProject);
+      window.location.href = destUrl;
+    })
+    .on('createProject', ({ name }) => {
+      if (!name) return;
+      createProject(name);
+      overlay.clearAll();
+      project = name;
+      setCurrentProject(project);
+      store = new CommentStore(project, url);
+      panel.setProject(project);
+      refresh();
+    })
+    .on('deleteProject', ({ name }) => {
+      deleteProject(name);
+      const projects = listProjects();
+      const pagesMap = Object.fromEntries(
+        projects.map(p => [p, listProjectPages(p)])
+      );
+      panel.setFlyoutData(projects, pagesMap);
+    })
     .on('pickRequest', () => {
       if (picker.isActive) {
         picker.stop();
@@ -96,7 +116,6 @@ import { PanelUI } from './panel.js';
       panel.setPickActive(true);
       picker.start({
         onPick: async ({ selector, label, meta, rect }) => {
-          panel.setPickActive(false);
           const x = rect ? rect.right : doc.defaultView.innerWidth / 2;
           const y = rect ? rect.top  : doc.defaultView.innerHeight / 2;
           const result = await panel.showDialogAt(x, y, { existing: '', showDelete: false });
@@ -104,6 +123,7 @@ import { PanelUI } from './panel.js';
             store.add(selector, label, result.text, meta);
             refresh();
           }
+          picker.resume(); // stay in pick mode until button is clicked again
         },
         onCancel: () => panel.setPickActive(false),
       });
@@ -140,6 +160,11 @@ import { PanelUI } from './panel.js';
       } catch {
         panel.showToast('✗ JSON 格式錯誤');
       }
+    })
+    .on('shareLink', async () => {
+      const shareUrl = Exporter.toShareURL(url, store.getAll());
+      const ok = await Exporter.copyToClipboard(shareUrl);
+      panel.showToast(ok ? '✓ 分享連結已複製到剪貼簿' : '✗ 複製失敗，請手動複製');
     });
 
   // ── Badge click → edit dialog ─────────────────────────────────────────────
@@ -153,9 +178,22 @@ import { PanelUI } from './panel.js';
     }
   });
 
-  panel.mount();
-  panel.setProject(project);
+  // Auto-import shared annotations when the URL contains a share hash
+  let didImportShared = false;
+  if (sharedData?.comments?.length) {
+    const existing = store.getAll();
+    const doImport = existing.length === 0
+      || doc.defaultView.confirm(
+           `此連結含有 ${sharedData.comments.length} 筆共享標註。是否匯入？（將覆蓋目前的 ${existing.length} 筆標註）`
+         );
+    if (doImport) {
+      store.importJSON(JSON.stringify({ version: 1, comments: sharedData.comments }));
+      didImportShared = true;
+    }
+  }
+
   refresh();
+  if (didImportShared) panel.showToast(`✓ 已載入 ${store.getAll().length} 筆共享標註`);
 
   window.__commentToolActive = {
     toggle() {
