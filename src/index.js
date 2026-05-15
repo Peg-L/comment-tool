@@ -137,10 +137,16 @@ import { PanelUI } from './panel.js';
         onPick: async ({ selector, label, meta, rect }) => {
           const x = rect ? rect.right : doc.defaultView.innerWidth / 2;
           const y = rect ? rect.top  : doc.defaultView.innerHeight / 2;
-          const result = await panel.showDialogAt(x, y, { existing: '', showDelete: false });
-          if (result.action === 'save' && result.text) {
-            store.add(selector, label, result.text, meta);
-            refresh();
+          // If this selector already has an annotation, open it for editing instead of creating a new one
+          const existing = store.getAll().find(c => c.selector === selector);
+          if (existing) {
+            await openEditDialog(existing.id, x, y);
+          } else {
+            const result = await panel.showDialogAt(x, y, { existing: '', showDelete: false });
+            if (result.action === 'save' && result.text) {
+              store.add(selector, label, result.text, meta);
+              refresh();
+            }
           }
           picker.resume(); // stay in pick mode until button is clicked again
         },
