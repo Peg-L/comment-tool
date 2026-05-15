@@ -179,6 +179,7 @@ const CSS = `
   background: rgba(243,139,168,0.15);
   color: #f38ba8;
   transition: background 0.1s;
+  flex-shrink: 0;
 }
 .btn-del:hover { background: #f38ba8; color: #1e1e2e; }
 .btn-edit-item {
@@ -250,6 +251,124 @@ const CSS = `
   margin-top: 10px;
 }
 .dialog-actions .spacer { flex: 1; }
+/* ── Project flyout ── */
+.proj-flyout-btn {
+  width: 100%;
+  background: #313244;
+  color: #cdd6f4;
+  border: none;
+  border-radius: 5px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.proj-flyout-btn:hover { background: #45475a; }
+.proj-flyout {
+  display: none;
+  flex-direction: column;
+  background: #1a1a2e;
+  border-bottom: 1px solid #313244;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.proj-flyout.open { display: flex; }
+.proj-flyout::-webkit-scrollbar { width: 4px; }
+.proj-flyout::-webkit-scrollbar-track { background: transparent; }
+.proj-flyout::-webkit-scrollbar-thumb { background: #45475a; border-radius: 2px; }
+.proj-acc-list { padding: 8px 10px 4px; flex: 1; }
+.proj-acc-row { border-radius: 6px; margin-bottom: 2px; overflow: hidden; }
+.proj-acc-hdr {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.1s;
+}
+.proj-acc-hdr:hover { background: #313244; }
+.proj-acc-row.current > .proj-acc-hdr { background: #2a2a3e; cursor: default; }
+.proj-acc-name {
+  flex: 1;
+  font-size: 12px;
+  color: #cdd6f4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.proj-acc-row.current > .proj-acc-hdr .proj-acc-name { color: #cba6f7; }
+.proj-acc-badge {
+  font-size: 10px;
+  background: #cba6f7;
+  color: #1e1e2e;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.proj-acc-arrow { font-size: 10px; color: #6c7086; flex-shrink: 0; }
+.proj-acc-del {
+  padding: 1px 6px;
+  font-size: 11px;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  background: rgba(243,139,168,0.15);
+  color: #f38ba8;
+  flex-shrink: 0;
+  transition: background 0.1s;
+}
+.proj-acc-del:hover { background: #f38ba8; color: #1e1e2e; }
+.proj-acc-pages {
+  padding: 2px 8px 4px 16px;
+  margin: 0 8px 4px;
+  border-left: 2px solid #313244;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.proj-acc-page {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 2px 0;
+  font-size: 11px;
+  color: #89b4fa;
+  cursor: pointer;
+  font-family: monospace;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.proj-acc-page:hover { color: #cba6f7; }
+.proj-acc-page-count { color: #585869; font-size: 10px; text-decoration: none; flex-shrink: 0; }
+.proj-acc-empty { font-size: 11px; color: #6c7086; font-style: italic; padding: 2px 0; }
+.proj-add-row {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid #313244;
+  background: #181825;
+  flex-shrink: 0;
+}
+.proj-add-input {
+  flex: 1;
+  min-width: 0;
+  background: #313244;
+  border: 1px solid #45475a;
+  border-radius: 5px;
+  color: #cdd6f4;
+  font-size: 12px;
+  padding: 4px 8px;
+  outline: none;
+  font-family: inherit;
+}
+.proj-add-input:focus { border-color: #89b4fa; }
 `;
 
 export class PanelUI {
@@ -304,12 +423,13 @@ export class PanelUI {
     const clearBtn  = this._btn('🗑 清除全部', 'btn-danger', () => {
       if (this._doc.defaultView.confirm('確定清除所有標註？')) this._emit('clear');
     });
-    const dlBtn = this._btn('⬇ JSON', 'btn-neutral', () => this._emit('exportJSON'));
-    const ulBtn = this._btn('⬆ 匯入', 'btn-neutral', () => {
+    const dlBtn    = this._btn('⬇ JSON', 'btn-neutral', () => this._emit('exportJSON'));
+    const ulBtn    = this._btn('⬆ 匯入', 'btn-neutral', () => {
       const json = this._doc.defaultView.prompt('貼上 JSON 內容：');
       if (json) this._emit('importJSON', json);
     });
-    tb.append(this._pickBtn, exportBtn, clearBtn, dlBtn, ulBtn);
+    const shareBtn = this._btn('🔗 分享', 'btn-neutral', () => this._emit('shareLink'));
+    tb.append(this._pickBtn, exportBtn, clearBtn, dlBtn, ulBtn, shareBtn);
     p.appendChild(tb);
 
     // Project bar
@@ -481,6 +601,91 @@ export class PanelUI {
         if (e.key === 'Escape') cancelBtn.click();
         e.stopPropagation();
       });
+    });
+  }
+
+  /**
+   * Show a project manager dialog (list + create + delete).
+   * Current project cannot be deleted — switch first.
+   * @param {string[]} initialProjects
+   * @param {string|null} currentProject
+   * @param {{ onDelete?: (name:string) => void }} [opts]
+   * @returns {Promise<{action:'select'|'create'|'cancel', project?:string}>}
+   */
+  showProjectDialog(initialProjects, currentProject, { onDelete } = {}) {
+    return new Promise(resolve => {
+      let projects = [...initialProjects];
+
+      const overlay = this._el('div', 'proj-overlay');
+      const mgr     = this._el('div', 'proj-mgr');
+      mgr.appendChild(this._el('h3', null, '專案管理'));
+
+      // ── Existing projects ────────────────────────────────────────────────
+      mgr.appendChild(this._el('div', 'proj-section-label', '選擇既有專案'));
+      const scroll = this._el('div', 'proj-scroll');
+
+      const renderList = () => {
+        scroll.innerHTML = '';
+        if (!projects.length) {
+          scroll.appendChild(this._el('div', 'proj-empty', '尚無專案'));
+          return;
+        }
+        projects.forEach(p => {
+          const isCurrent = p === currentProject;
+          const row = this._el('div', 'proj-row' + (isCurrent ? ' proj-row-current' : ''));
+          row.appendChild(this._el('span', 'proj-row-name', p));
+
+          if (isCurrent) {
+            row.appendChild(this._el('span', 'proj-current-badge', '目前'));
+          } else {
+            const delBtn = this._el('button', 'btn-del', '刪除');
+            delBtn.addEventListener('click', e => {
+              e.stopPropagation();
+              if (!this._doc.defaultView.confirm(`確定刪除專案「${p}」及其所有標註？`)) return;
+              onDelete?.(p);
+              projects = projects.filter(x => x !== p);
+              renderList();
+            });
+            row.appendChild(delBtn);
+            row.addEventListener('click', () => { overlay.remove(); resolve({ action: 'select', project: p }); });
+          }
+          scroll.appendChild(row);
+        });
+      };
+
+      renderList();
+      mgr.appendChild(scroll);
+
+      // ── New project ──────────────────────────────────────────────────────
+      mgr.appendChild(this._el('div', 'proj-section-label', '建立新專案'));
+      const newRow   = this._el('div', 'proj-new-row');
+      const input    = this._doc.createElement('input');
+      input.type      = 'text';
+      input.className = 'proj-input';
+      input.placeholder = '輸入新專案名稱…';
+      const cancelBtn  = this._btn('取消', 'btn-neutral', () => { overlay.remove(); resolve({ action: 'cancel' }); });
+      const createBtn  = this._btn('建立', 'btn-primary', () => {
+        const name = input.value.trim();
+        if (!name) { input.focus(); return; }
+        overlay.remove();
+        resolve({ action: 'create', project: name });
+      });
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter')  createBtn.click();
+        if (e.key === 'Escape') cancelBtn.click();
+        e.stopPropagation();
+      });
+      newRow.append(input, createBtn);
+      mgr.appendChild(newRow);
+
+      // ── Footer ───────────────────────────────────────────────────────────
+      const footer = this._el('div', 'proj-footer');
+      footer.appendChild(cancelBtn);
+      mgr.appendChild(footer);
+
+      overlay.appendChild(mgr);
+      this._shadow.appendChild(overlay);
+      requestAnimationFrame(() => input.focus());
     });
   }
 
