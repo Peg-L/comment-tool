@@ -87,16 +87,6 @@ const CSS = `
   font-size: 12px;
   color: #a6adc8;
 }
-.proj-icon { font-size: 13px; }
-.proj-label {
-  flex: 1;
-  font-weight: 600;
-  color: #cba6f7;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.btn-xs { padding: 2px 8px; font-size: 11px; }
 .list-header {
   font-size: 11px;
   font-weight: 700;
@@ -735,7 +725,15 @@ export class PanelUI {
     });
   }
 
-  unmount(){
-    if (this._host) { this._host.remove(); this._host = null; this._shadow = null; }
+  unmount() {
+    this._closeFlyout();
+    if (this._host) {
+      this._host.remove();
+      this._host = null;
+      this._shadow = null;
+      this._flyoutEl = null;
+      this._projFlyoutBtn = null;
+    }
   }
-}
+}
+
