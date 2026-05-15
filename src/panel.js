@@ -381,6 +381,12 @@ export class PanelUI {
     this._collapsed = false;
     this._pickActive = false;
     this._cbs = {};
+    this._project = '';
+    this._flyoutOpen = false;
+    this._flyoutExpandedProject = null;
+    this._flyoutEl = null;
+    this._projFlyoutBtn = null;
+    this._flyoutOutsideHandler = null;
   }
 
   on(event, cb) { this._cbs[event] = cb; return this; }
@@ -432,12 +438,16 @@ export class PanelUI {
     tb.append(this._pickBtn, exportBtn, clearBtn, dlBtn, ulBtn, shareBtn);
     p.appendChild(tb);
 
-    // Project bar
+    // Project bar with flyout toggle
     const projBar = this._el('div', 'proj-bar');
-    this._projLabel = this._el('span', 'proj-label', '');
-    const switchBtn = this._btn('切換', 'btn btn-neutral btn-xs', () => this._emit('switchProject'));
-    projBar.append(this._el('span', 'proj-icon', '📁'), this._projLabel, switchBtn);
+    this._projFlyoutBtn = this._el('button', 'proj-flyout-btn', '📁 … ▾');
+    this._projFlyoutBtn.addEventListener('click', () => this._toggleFlyout());
+    projBar.appendChild(this._projFlyoutBtn);
     p.appendChild(projBar);
+
+    // Flyout (hidden until toggled open)
+    this._flyoutEl = this._el('div', 'proj-flyout');
+    p.appendChild(this._flyoutEl);
 
     // List header
     p.appendChild(this._el('div', 'list-header', '標註清單'));
@@ -530,7 +540,128 @@ export class PanelUI {
   }
 
   setProject(name) {
-    if (this._projLabel) this._projLabel.textContent = name || '（未命名專案）';
+    this._project = name;
+    if (this._projFlyoutBtn) {
+      this._projFlyoutBtn.textContent = `📁 ${name || '（未命名）'} ▾`;
+    }
+  }
+
+  _openFlyout() {
+    if (this._flyoutOpen) return;
+    this._flyoutOpen = true;
+    this._flyoutExpandedProject = this._project;
+    this._flyoutEl.classList.add('open');
+    this._emit('flyoutOpen');
+    this._flyoutOutsideHandler = (e) => {
+      if (!e.composedPath().includes(this._host)) this._closeFlyout();
+    };
+    this._doc.addEventListener('click', this._flyoutOutsideHandler, { capture: true });
+  }
+
+  _closeFlyout() {
+    if (!this._flyoutOpen) return;
+    this._flyoutOpen = false;
+    this._flyoutEl.classList.remove('open');
+    if (this._flyoutOutsideHandler) {
+      this._doc.removeEventListener('click', this._flyoutOutsideHandler, { capture: true });
+      this._flyoutOutsideHandler = null;
+    }
+  }
+
+  _toggleFlyout() {
+    if (this._flyoutOpen) this._closeFlyout();
+    else this._openFlyout();
+  }
+
+  /**
+   * Render the flyout contents.
+   * @param {string[]} projects       Sorted project names
+   * @param {Object}   pagesMap       { [projectName]: Array<{url,path,count}> }
+   */
+  setFlyoutData(projects, pagesMap) {
+    if (!this._flyoutEl) return;
+    this._flyoutEl.innerHTML = '';
+
+    // ── Accordion list ─────────────────────────────────────────────────────
+    const list = this._el('div', 'proj-acc-list');
+
+    projects.forEach(p => {
+      const isCurrent  = p === this._project;
+      const isExpanded = p === this._flyoutExpandedProject;
+      const pages      = pagesMap[p] || [];
+
+      const row = this._el('div', 'proj-acc-row' + (isCurrent ? ' current' : ''));
+
+      // Header row
+      const hdr  = this._el('div', 'proj-acc-hdr');
+      const name = this._el('span', 'proj-acc-name', p);
+      hdr.appendChild(name);
+
+      if (isCurrent) {
+        hdr.appendChild(this._el('span', 'proj-acc-badge', '目前'));
+      } else {
+        const arrow  = this._el('span', 'proj-acc-arrow', isExpanded ? '▼' : '▶');
+        const delBtn = this._el('button', 'proj-acc-del', '刪除');
+        delBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          if (!this._doc.defaultView.confirm(`確定刪除專案「${p}」及其所有標註？`)) return;
+          this._emit('deleteProject', { name: p });
+        });
+        hdr.append(arrow, delBtn);
+        hdr.addEventListener('click', () => {
+          this._flyoutExpandedProject = isExpanded ? null : p;
+          this._emit('flyoutOpen'); // ask index.js to re-render with new expanded state
+        });
+      }
+
+      row.appendChild(hdr);
+
+      // Pages (shown when expanded or current)
+      if (isCurrent || isExpanded) {
+        const pagesDiv = this._el('div', 'proj-acc-pages');
+        if (!pages.length) {
+          pagesDiv.appendChild(this._el('span', 'proj-acc-empty', '此專案尚無標註頁面'));
+        } else {
+          pages.forEach(({ url, path, count }) => {
+            const link  = this._el('span', 'proj-acc-page', `↗ ${path} `);
+            const cnt   = this._el('span', 'proj-acc-page-count', `${count} 筆`);
+            link.appendChild(cnt);
+            link.addEventListener('click', e => {
+              e.stopPropagation();
+              this._closeFlyout();
+              this._emit('navigateToPage', { url, project: p });
+            });
+            pagesDiv.appendChild(link);
+          });
+        }
+        row.appendChild(pagesDiv);
+      }
+
+      list.appendChild(row);
+    });
+
+    this._flyoutEl.appendChild(list);
+
+    // ── Add new project row ────────────────────────────────────────────────
+    const addRow   = this._el('div', 'proj-add-row');
+    const input    = this._doc.createElement('input');
+    input.type        = 'text';
+    input.className   = 'proj-add-input';
+    input.placeholder = '新專案名稱…';
+    const createBtn   = this._btn('建立', 'btn-primary', () => {
+      const n = input.value.trim();
+      if (!n) { input.focus(); return; }
+      input.value = '';
+      this._closeFlyout();
+      this._emit('createProject', { name: n });
+    });
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter')  createBtn.click();
+      if (e.key === 'Escape') this._closeFlyout();
+      e.stopPropagation();
+    });
+    addRow.append(input, createBtn);
+    this._flyoutEl.appendChild(addRow);
   }
 
   setPickActive(active) {
@@ -604,92 +735,7 @@ export class PanelUI {
     });
   }
 
-  /**
-   * Show a project manager dialog (list + create + delete).
-   * Current project cannot be deleted — switch first.
-   * @param {string[]} initialProjects
-   * @param {string|null} currentProject
-   * @param {{ onDelete?: (name:string) => void }} [opts]
-   * @returns {Promise<{action:'select'|'create'|'cancel', project?:string}>}
-   */
-  showProjectDialog(initialProjects, currentProject, { onDelete } = {}) {
-    return new Promise(resolve => {
-      let projects = [...initialProjects];
-
-      const overlay = this._el('div', 'proj-overlay');
-      const mgr     = this._el('div', 'proj-mgr');
-      mgr.appendChild(this._el('h3', null, '專案管理'));
-
-      // ── Existing projects ────────────────────────────────────────────────
-      mgr.appendChild(this._el('div', 'proj-section-label', '選擇既有專案'));
-      const scroll = this._el('div', 'proj-scroll');
-
-      const renderList = () => {
-        scroll.innerHTML = '';
-        if (!projects.length) {
-          scroll.appendChild(this._el('div', 'proj-empty', '尚無專案'));
-          return;
-        }
-        projects.forEach(p => {
-          const isCurrent = p === currentProject;
-          const row = this._el('div', 'proj-row' + (isCurrent ? ' proj-row-current' : ''));
-          row.appendChild(this._el('span', 'proj-row-name', p));
-
-          if (isCurrent) {
-            row.appendChild(this._el('span', 'proj-current-badge', '目前'));
-          } else {
-            const delBtn = this._el('button', 'btn-del', '刪除');
-            delBtn.addEventListener('click', e => {
-              e.stopPropagation();
-              if (!this._doc.defaultView.confirm(`確定刪除專案「${p}」及其所有標註？`)) return;
-              onDelete?.(p);
-              projects = projects.filter(x => x !== p);
-              renderList();
-            });
-            row.appendChild(delBtn);
-            row.addEventListener('click', () => { overlay.remove(); resolve({ action: 'select', project: p }); });
-          }
-          scroll.appendChild(row);
-        });
-      };
-
-      renderList();
-      mgr.appendChild(scroll);
-
-      // ── New project ──────────────────────────────────────────────────────
-      mgr.appendChild(this._el('div', 'proj-section-label', '建立新專案'));
-      const newRow   = this._el('div', 'proj-new-row');
-      const input    = this._doc.createElement('input');
-      input.type      = 'text';
-      input.className = 'proj-input';
-      input.placeholder = '輸入新專案名稱…';
-      const cancelBtn  = this._btn('取消', 'btn-neutral', () => { overlay.remove(); resolve({ action: 'cancel' }); });
-      const createBtn  = this._btn('建立', 'btn-primary', () => {
-        const name = input.value.trim();
-        if (!name) { input.focus(); return; }
-        overlay.remove();
-        resolve({ action: 'create', project: name });
-      });
-      input.addEventListener('keydown', e => {
-        if (e.key === 'Enter')  createBtn.click();
-        if (e.key === 'Escape') cancelBtn.click();
-        e.stopPropagation();
-      });
-      newRow.append(input, createBtn);
-      mgr.appendChild(newRow);
-
-      // ── Footer ───────────────────────────────────────────────────────────
-      const footer = this._el('div', 'proj-footer');
-      footer.appendChild(cancelBtn);
-      mgr.appendChild(footer);
-
-      overlay.appendChild(mgr);
-      this._shadow.appendChild(overlay);
-      requestAnimationFrame(() => input.focus());
-    });
-  }
-
-  unmount() {
+  unmount(){
     if (this._host) { this._host.remove(); this._host = null; this._shadow = null; }
   }
 }
