@@ -1,3 +1,4 @@
+// src/index.js
 import { CommentStore, getCurrentProject, setCurrentProject, listProjects, listProjectPages, createProject, deleteProject } from './store.js';
 import { ElementPicker } from './picker.js';
 import { OverlayManager } from './overlay.js';
@@ -49,6 +50,14 @@ import { PanelUI } from './panel.js';
     panel.refresh(comments, (id) => overlay.isMissing(id));
   }
 
+  function refreshFlyout() {
+    const projects = listProjects();
+    const pagesMap = Object.fromEntries(
+      projects.map(p => [p, listProjectPages(p)])
+    );
+    panel.setFlyoutData(projects, pagesMap);
+  }
+
   // ── Edit helper (shared by badge click + sidebar edit button) ─────────────
   async function openEditDialog(id, anchorX, anchorY) {
     const comment = store.getAll().find(c => c.id === id);
@@ -79,15 +88,17 @@ import { PanelUI } from './panel.js';
   // ── Panel wiring ──────────────────────────────────────────────────────────
   panel
     .on('flyoutOpen', () => {
-      const projects = listProjects();
-      const pagesMap = Object.fromEntries(
-        projects.map(p => [p, listProjectPages(p)])
-      );
-      panel.setFlyoutData(projects, pagesMap);
+      refreshFlyout();
     })
     .on('navigateToPage', ({ url: destUrl, project: destProject }) => {
+      if (!destUrl || !destProject) return;
+      if (destProject === project && destUrl === url) return;
       setCurrentProject(destProject);
-      window.location.href = destUrl;
+      try {
+        window.location.href = destUrl;
+      } catch {
+        setCurrentProject(project);
+      }
     })
     .on('createProject', ({ name }) => {
       if (!name) return;
@@ -101,11 +112,19 @@ import { PanelUI } from './panel.js';
     })
     .on('deleteProject', ({ name }) => {
       deleteProject(name);
-      const projects = listProjects();
-      const pagesMap = Object.fromEntries(
-        projects.map(p => [p, listProjectPages(p)])
-      );
-      panel.setFlyoutData(projects, pagesMap);
+
+      if (name === project) {
+        const remaining = listProjects();
+        project = remaining[0] ?? 'default';
+        if (!remaining.length) createProject('default');
+        setCurrentProject(project);
+        store = new CommentStore(project, url);
+        overlay.clearAll();
+        panel.setProject(project);
+        refresh();
+      }
+
+      refreshFlyout();
     })
     .on('pickRequest', () => {
       if (picker.isActive) {
