@@ -1,9 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  getCurrentProject, setCurrentProject,
   createProject, listProjects, listProjectPages, deleteProject,
+  CommentStore,
 } from '../src/store.js';
-import { CommentStore } from '../src/store.js';
 
 beforeEach(() => localStorage.clear());
 

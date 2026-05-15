@@ -28,6 +28,7 @@ export function setCurrentProject(name) {
 
 /** Add a named project to the persistent project list (no-op if already exists). */
 export function createProject(name) {
+  if (!name) return;
   const list = _getProjectList();
   if (!list.includes(name)) {
     list.push(name);
