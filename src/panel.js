@@ -69,7 +69,11 @@ const CSS = `
   font-weight: 500;
   white-space: nowrap;
   transition: opacity 0.1s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
+iconify-icon { font-size: inherit; flex-shrink: 0; }
 .btn:hover { opacity: 0.85; }
 .btn:active { opacity: 0.65; }
 .btn-primary { background: #89b4fa; color: #1e1e2e; }
@@ -254,9 +258,10 @@ const CSS = `
   text-align: left;
   cursor: pointer;
   transition: background 0.1s;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 .proj-flyout-btn:hover { background: #45475a; }
 .proj-flyout {
@@ -302,7 +307,6 @@ const CSS = `
   font-weight: 600;
   flex-shrink: 0;
 }
-.proj-acc-arrow { font-size: 10px; color: #6c7086; flex-shrink: 0; }
 .proj-acc-del {
   padding: 1px 6px;
   font-size: 11px;
@@ -386,6 +390,12 @@ export class PanelUI {
 
   mount() {
     if (this._host) return;
+    // Inject Iconify web component script once per page
+    if (!this._doc.defaultView.customElements.get('iconify-icon')) {
+      const s = this._doc.createElement('script');
+      s.src = 'https://code.iconify.design/iconify-icon/2.1.0/iconify-icon.min.js';
+      this._doc.head.appendChild(s);
+    }
     this._host = this._doc.createElement('div');
     this._host.setAttribute('data-__ct__panel', 'true');
     this._shadow = this._host.attachShadow({ mode: 'open' });
@@ -407,30 +417,40 @@ export class PanelUI {
     p.innerHTML = '';
 
     // Toggle button (always visible, shows shortcut hint)
-    const toggle = this._el('button', 'toggle-btn', this._collapsed ? '◀' : '▶');
+    const toggle = this._doc.createElement('button');
+    toggle.className = 'toggle-btn';
+    toggle.appendChild(this._icon(this._collapsed ? 'mdi:chevron-right' : 'mdi:chevron-left'));
     toggle.title = '收起/展開 (Alt+C)';
     toggle.addEventListener('click', () => this._toggleCollapse());
     p.appendChild(toggle);
 
     // Toolbar
     const tb = this._el('div', 'toolbar');
-    this._pickBtn = this._btn('🎯 選取元素', 'btn-primary', () => this._emit('pickRequest'));
-    const exportBtn = this._btn('📋 複製 Prompt', 'btn-success', () => this._emit('exportPrompt'));
-    const clearBtn  = this._btn('🗑 清除全部', 'btn-danger', () => {
+    this._pickBtn = this._btn('mdi:cursor-default-click', '選取元素', 'btn-primary', () => this._emit('pickRequest'));
+    const exportBtn = this._btn('mdi:content-copy', '複製 Prompt', 'btn-success', () => this._emit('exportPrompt'));
+    const clearBtn  = this._btn('mdi:trash-can-outline', '清除全部', 'btn-danger', () => {
       if (this._doc.defaultView.confirm('確定清除所有標註？')) this._emit('clear');
     });
-    const dlBtn    = this._btn('⬇ JSON', 'btn-neutral', () => this._emit('exportJSON'));
-    const ulBtn    = this._btn('⬆ 匯入', 'btn-neutral', () => {
+    const dlBtn    = this._btn('mdi:download', 'JSON', 'btn-neutral', () => this._emit('exportJSON'));
+    const ulBtn    = this._btn('mdi:upload', '匯入', 'btn-neutral', () => {
       const json = this._doc.defaultView.prompt('貼上 JSON 內容：');
       if (json) this._emit('importJSON', json);
     });
-    const shareBtn = this._btn('🔗 分享', 'btn-neutral', () => this._emit('shareLink'));
+    const shareBtn = this._btn('mdi:share-variant', '分享', 'btn-neutral', () => this._emit('shareLink'));
     tb.append(this._pickBtn, exportBtn, clearBtn, dlBtn, ulBtn, shareBtn);
     p.appendChild(tb);
 
     // Project bar with flyout toggle
     const projBar = this._el('div', 'proj-bar');
-    this._projFlyoutBtn = this._el('button', 'proj-flyout-btn', '📁 … ▾');
+    this._projFlyoutBtn = this._doc.createElement('button');
+    this._projFlyoutBtn.className = 'proj-flyout-btn';
+    this._projFlyoutBtn.appendChild(this._icon('mdi:folder'));
+    const projNameSpan = this._doc.createElement('span');
+    projNameSpan.className = 'proj-name';
+    projNameSpan.style.cssText = 'flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+    projNameSpan.textContent = '…';
+    this._projFlyoutBtn.appendChild(projNameSpan);
+    this._projFlyoutBtn.appendChild(this._icon('mdi:chevron-down'));
     this._projFlyoutBtn.addEventListener('click', () => this._toggleFlyout());
     projBar.appendChild(this._projFlyoutBtn);
     p.appendChild(projBar);
@@ -455,8 +475,21 @@ export class PanelUI {
     return el;
   }
 
-  _btn(label, cls, onClick) {
-    const b = this._el('button', 'btn ' + cls, label);
+  _icon(name) {
+    const ic = this._doc.createElement('iconify-icon');
+    ic.setAttribute('icon', name);
+    return ic;
+  }
+
+  _btn(iconName, label, cls, onClick) {
+    const b = this._doc.createElement('button');
+    b.className = 'btn ' + cls;
+    if (iconName) b.appendChild(this._icon(iconName));
+    if (label) {
+      const s = this._doc.createElement('span');
+      s.textContent = label;
+      b.appendChild(s);
+    }
     b.addEventListener('click', onClick);
     return b;
   }
@@ -465,7 +498,10 @@ export class PanelUI {
     this._collapsed = !this._collapsed;
     this._panel.classList.toggle('collapsed', this._collapsed);
     const toggle = this._shadow.querySelector('.toggle-btn');
-    if (toggle) toggle.textContent = this._collapsed ? '◀' : '▶';
+    if (toggle) {
+      const icon = toggle.querySelector('iconify-icon');
+      if (icon) icon.setAttribute('icon', this._collapsed ? 'mdi:chevron-right' : 'mdi:chevron-left');
+    }
   }
 
   /** Public: toggle collapse state (used by keyboard shortcut) */
@@ -513,10 +549,8 @@ export class PanelUI {
 
       // Actions
       const actions = this._el('div', 'comment-actions');
-      const editBtn = this._el('button', 'btn-edit-item', '編輯');
-      editBtn.addEventListener('click', (e) => { e.stopPropagation(); this._emit('edit', c.id); });
-      const delBtn = this._el('button', 'btn-del', '刪除');
-      delBtn.addEventListener('click', (e) => { e.stopPropagation(); this._emit('delete', c.id); });
+      const editBtn = this._btn('mdi:pencil', '編輯', 'btn-edit-item', (e) => { e.stopPropagation(); this._emit('edit', c.id); });
+      const delBtn  = this._btn('mdi:delete', '刪除', 'btn-del', (e) => { e.stopPropagation(); this._emit('delete', c.id); });
       actions.append(editBtn, delBtn);
       item.appendChild(actions);
 
@@ -532,7 +566,8 @@ export class PanelUI {
   setProject(name) {
     this._project = name;
     if (this._projFlyoutBtn) {
-      this._projFlyoutBtn.textContent = `📁 ${name || '（未命名）'} ▾`;
+      const nameSpan = this._projFlyoutBtn.querySelector('.proj-name');
+      if (nameSpan) nameSpan.textContent = name || '（未命名）';
     }
   }
 
@@ -590,9 +625,9 @@ export class PanelUI {
       if (isCurrent) {
         hdr.appendChild(this._el('span', 'proj-acc-badge', '目前'));
       } else {
-        const arrow  = this._el('span', 'proj-acc-arrow', isExpanded ? '▼' : '▶');
-        const delBtn = this._el('button', 'proj-acc-del', '刪除');
-        delBtn.addEventListener('click', e => {
+        const arrow  = this._icon(isExpanded ? 'mdi:chevron-down' : 'mdi:chevron-right');
+        arrow.style.cssText = 'flex-shrink:0; font-size:14px;';
+        const delBtn = this._btn('mdi:delete', '刪除', 'proj-acc-del', e => {
           e.stopPropagation();
           if (!this._doc.defaultView.confirm(`確定刪除專案「${p}」及其所有標註？`)) return;
           this._emit('deleteProject', { name: p });
@@ -638,7 +673,7 @@ export class PanelUI {
     input.type        = 'text';
     input.className   = 'proj-add-input';
     input.placeholder = '新專案名稱…';
-    const createBtn   = this._btn('建立', 'btn-primary', () => {
+    const createBtn   = this._btn('mdi:plus', '建立', 'btn-primary', () => {
       const n = input.value.trim();
       if (!n) { input.focus(); return; }
       input.value = '';
@@ -702,12 +737,12 @@ export class PanelUI {
       const done = (result) => { dialog.remove(); resolve(result); };
 
       if (showDelete) {
-        const delBtn = this._btn('刪除', 'btn-danger', () => done({ action: 'delete' }));
+        const delBtn = this._btn('mdi:delete', '刪除', 'btn-danger', () => done({ action: 'delete' }));
         const spacer = this._el('span', 'spacer');
         actions.append(delBtn, spacer);
       }
-      const cancelBtn = this._btn('取消', 'btn-neutral', () => done({ action: 'cancel' }));
-      const saveBtn   = this._btn('儲存', 'btn-primary', () => {
+      const cancelBtn = this._btn('mdi:close', '取消', 'btn-neutral', () => done({ action: 'cancel' }));
+      const saveBtn   = this._btn('mdi:check', '儲存', 'btn-primary', () => {
         const text = ta.value.trim();
         done({ action: text ? 'save' : 'cancel', text });
       });

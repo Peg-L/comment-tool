@@ -72,7 +72,7 @@ export class ElementPicker {
     if (el.getAttribute('placeholder')) attrs.placeholder = el.getAttribute('placeholder');
     const rect = el.getBoundingClientRect();
 
-    this.stop();
+    this.suspend(); // pause hover/click while dialog is shown
     if (this._onPick) this._onPick({ selector, label, element: el, meta: { tagName, innerText, attrs }, rect });
   }
 
@@ -88,6 +88,31 @@ export class ElementPicker {
     this._active = true;
     this._onPick = onPick;
     this._onCancel = onCancel;
+    this._doc.addEventListener('mouseover', this._onMouseOver, true);
+    this._doc.addEventListener('mouseout', this._onMouseOut, true);
+    this._doc.addEventListener('click', this._onClick, true);
+    this._doc.addEventListener('keydown', this._onKeyDown, true);
+    this._doc.body.style.cursor = 'crosshair';
+  }
+
+  /** Temporarily remove hover/click/keyboard listeners while a dialog is open. */
+  suspend() {
+    if (!this._active) return;
+    this._doc.removeEventListener('mouseover', this._onMouseOver, true);
+    this._doc.removeEventListener('mouseout', this._onMouseOut, true);
+    this._doc.removeEventListener('click', this._onClick, true);
+    this._doc.removeEventListener('keydown', this._onKeyDown, true);
+    this._doc.body.style.cursor = '';
+    if (this._hovered) {
+      this._hovered.style.outline = this._savedOutline;
+      this._hovered.style.outlineOffset = '';
+      this._hovered = null;
+    }
+  }
+
+  /** Re-attach hover/click/keyboard listeners after a dialog is closed. */
+  resume() {
+    if (!this._active) return;
     this._doc.addEventListener('mouseover', this._onMouseOver, true);
     this._doc.addEventListener('mouseout', this._onMouseOut, true);
     this._doc.addEventListener('click', this._onClick, true);
