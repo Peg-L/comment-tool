@@ -1,11 +1,6 @@
 // src/overlay.js
 const BADGE_ID_PREFIX = '__ct_badge_';
-const COLORS = [
-  '#ef4444', '#f97316', '#eab308', '#22c55e',
-  '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6',
-];
-
-function getColor(i) { return COLORS[i % COLORS.length]; }
+const RED = '#ef4444';
 
 /**
  * OverlayManager — draws colored outlines + numbered badges on annotated elements.
@@ -30,7 +25,6 @@ export class OverlayManager {
 
   _render(comment, num) {
     const el = this._doc.querySelector(comment.selector);
-    const color = getColor(num - 1);
 
     if (!el) {
       this._badges.set(comment.id, { badgeEl: null, element: null, missing: true });
@@ -40,7 +34,7 @@ export class OverlayManager {
     // Outline
     el.dataset.__ctPrevOutline = el.style.outline || '';
     el.dataset.__ctPrevOffset = el.style.outlineOffset || '';
-    el.style.outline = `2px solid ${color}`;
+    el.style.outline = `2px solid ${RED}`;
     el.style.outlineOffset = '2px';
 
     // Badge
@@ -50,7 +44,7 @@ export class OverlayManager {
     Object.assign(badge.style, {
       position: 'fixed',
       zIndex: '2147483646',
-      background: color,
+      background: RED,
       color: '#fff',
       borderRadius: '50%',
       width: '20px',
@@ -112,6 +106,17 @@ export class OverlayManager {
   }
 
   isMissing(id) { return this._badges.get(id)?.missing === true; }
+
+  /** Flash a red glow on the element to help user locate it after scroll. */
+  pulse(id) {
+    const entry = this._badges.get(id);
+    if (!entry?.element) return;
+    entry.element.animate([
+      { boxShadow: '0 0 0 0 rgba(239,68,68,0.75)' },
+      { boxShadow: '0 0 0 12px rgba(239,68,68,0.45)' },
+      { boxShadow: '0 0 0 24px rgba(239,68,68,0)' },
+    ], { duration: 600, iterations: 2.5, easing: 'ease-out' });
+  }
 
   _startObserver() {
     if (this._observer) return;

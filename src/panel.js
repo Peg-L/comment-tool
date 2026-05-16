@@ -1,9 +1,5 @@
 // src/panel.js
-const COLORS = [
-  '#ef4444','#f97316','#eab308','#22c55e',
-  '#3b82f6','#8b5cf6','#ec4899','#14b8a6',
-];
-function getColor(i) { return COLORS[i % COLORS.length]; }
+const RED = '#ef4444';
 
 const CSS = `
 :host {
@@ -586,7 +582,7 @@ export class PanelUI {
   /** Public: expand panel if collapsed */
   open() { if (this._collapsed) this._toggleCollapse(); }
 
-  refresh(comments, isMissing) {
+  refresh(comments, isMissing, onLocate) {
     if (!this._listEl) return;
     this._listEl.innerHTML = '';
 
@@ -603,7 +599,7 @@ export class PanelUI {
       // Header: badge + tagName chip + selector label
       const hdr = this._el('div', 'comment-header');
       const badge = this._el('span', 'badge', String(i + 1));
-      badge.style.background = getColor(i);
+      badge.style.background = RED;
       hdr.appendChild(badge);
       if (meta.tagName) hdr.appendChild(this._el('span', 'comment-tag', meta.tagName));
       const label = this._el('span', 'comment-label',
@@ -630,10 +626,13 @@ export class PanelUI {
       actions.append(editBtn, delBtn);
       item.appendChild(actions);
 
-      // Click item → scroll to element
+      // Click item → scroll to element + pulse glow
       item.addEventListener('click', () => {
         const el = this._doc.querySelector(c.selector);
-        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setTimeout(() => { if (onLocate) onLocate(c.id); }, 400);
+        }
       });
       this._listEl.appendChild(item);
     });

@@ -39,7 +39,7 @@ import { PanelUI } from './panel.js';
   async function refresh() {
     const comments = await adapter.getAnnotations(project, url);
     overlay.renderAll(comments);
-    panel.refresh(comments, (id) => overlay.isMissing(id));
+    panel.refresh(comments, (id) => overlay.isMissing(id), (id) => overlay.pulse(id));
   }
 
   async function refreshFlyout() {
