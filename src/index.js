@@ -63,10 +63,13 @@ import { PanelUI } from './panel.js';
     const comment = store.getAll().find(c => c.id === id);
     if (!comment) return;
 
+    const el = doc.querySelector(comment.selector);
     let x = anchorX, y = anchorY;
+
     if (x == null || y == null) {
-      const el = doc.querySelector(comment.selector);
+      // Called from sidebar — scroll element into view first, then position dialog
       if (el) {
+        el.scrollIntoView({ behavior: 'instant', block: 'center' });
         const r = el.getBoundingClientRect();
         x = r.right; y = r.top;
       } else {
