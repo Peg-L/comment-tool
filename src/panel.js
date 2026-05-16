@@ -437,8 +437,6 @@ export class PanelUI {
     this._listEl = null;
     this._collapsed = false;
     this._pickActive = false;
-    this._pickSwitch = null;
-    this._pickSwitchTrack = null;
     this._cbs = {};
     this._project = '';
     this._flyoutOpen = false;
@@ -496,22 +494,7 @@ export class PanelUI {
     // Toolbar
     const tb = this._el('div', 'toolbar');
 
-    // Pick group: button + switch toggle
-    const pickGroup = this._el('div', 'pick-group');
     this._pickBtn = this._btn('mdi:cursor-default-click', '選取元素', 'btn-primary', () => this._emit('pickRequest'));
-    pickGroup.appendChild(this._pickBtn);
-
-    this._pickSwitch = this._doc.createElement('div');
-    this._pickSwitch.className = 'pick-switch';
-    this._pickSwitchTrack = this._doc.createElement('div');
-    this._pickSwitchTrack.className = 'pick-switch-track';
-    const knob = this._doc.createElement('div');
-    knob.className = 'pick-switch-knob';
-    this._pickSwitchTrack.appendChild(knob);
-    this._pickSwitch.appendChild(this._pickSwitchTrack);
-    this._pickSwitch.addEventListener('click', () => this._emit('pickRequest'));
-    pickGroup.appendChild(this._pickSwitch);
-
     const exportBtn = this._btn('mdi:content-copy', '複製 Prompt', 'btn-success', () => this._emit('exportPrompt'));
     const clearBtn  = this._btn('mdi:trash-can-outline', '清除全部', 'btn-danger', () => {
       if (this._doc.defaultView.confirm('確定清除所有標註？')) this._emit('clear');
@@ -525,7 +508,7 @@ export class PanelUI {
     this._settingsBtn.appendChild(this._icon('mdi:cloud-cog'));
     this._settingsBtn.appendChild(cloudDot);
     this._settingsBtn.addEventListener('click', () => this._toggleSettings());
-    tb.append(pickGroup, exportBtn, clearBtn, this._settingsBtn);
+    tb.append(this._pickBtn, exportBtn, clearBtn, this._settingsBtn);
     p.appendChild(tb);
 
     // Project bar with flyout toggle
@@ -784,8 +767,18 @@ export class PanelUI {
 
   setPickActive(active) {
     this._pickActive = active;
-    if (this._pickBtn) this._pickBtn.classList.toggle('active', active);
-    if (this._pickSwitchTrack) this._pickSwitchTrack.classList.toggle('on', active);
+    if (!this._pickBtn) return;
+    const icon  = this._pickBtn.querySelector('iconify-icon');
+    const label = this._pickBtn.querySelector('span');
+    if (active) {
+      this._pickBtn.className = 'btn btn-danger';
+      if (icon)  icon.setAttribute('icon', 'mdi:stop-circle-outline');
+      if (label) label.textContent = '停止選取';
+    } else {
+      this._pickBtn.className = 'btn btn-primary';
+      if (icon)  icon.setAttribute('icon', 'mdi:cursor-default-click');
+      if (label) label.textContent = '選取元素';
+    }
   }
 
   showToast(msg) {

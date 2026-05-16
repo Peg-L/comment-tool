@@ -50,10 +50,10 @@ export class ElementPicker {
   }
 
   _onClick(e) {
+    const el = e.target;
+    if (this._isTool(el)) return; // let tool clicks pass through normally
     e.preventDefault();
     e.stopPropagation();
-    const el = e.target;
-    if (this._isTool(el)) return;
     if (this._hovered) {
       this._hovered.style.outline = this._savedOutline;
       this._hovered.style.outlineOffset = '';
