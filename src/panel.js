@@ -391,6 +391,41 @@ iconify-icon { font-size: inherit; flex-shrink: 0; }
 }
 .settings-input:focus { border-color: #89b4fa; }
 .settings-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 2px; }
+/* ── Pick group with switch toggle ── */
+.pick-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.pick-switch {
+  display: inline-block;
+  width: 30px;
+  height: 17px;
+  position: relative;
+  flex-shrink: 0;
+  cursor: pointer;
+  border-radius: 9px;
+}
+.pick-switch-track {
+  position: absolute;
+  inset: 0;
+  background: #45475a;
+  border-radius: 9px;
+  transition: background 0.2s;
+}
+.pick-switch-track.on { background: #a6e3a1; }
+.pick-switch-knob {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  top: 2px;
+  left: 2px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+  pointer-events: none;
+}
+.pick-switch-track.on .pick-switch-knob { transform: translateX(13px); }
 `;
 
 export class PanelUI {
@@ -402,6 +437,8 @@ export class PanelUI {
     this._listEl = null;
     this._collapsed = false;
     this._pickActive = false;
+    this._pickSwitch = null;
+    this._pickSwitchTrack = null;
     this._cbs = {};
     this._project = '';
     this._flyoutOpen = false;
@@ -458,17 +495,27 @@ export class PanelUI {
 
     // Toolbar
     const tb = this._el('div', 'toolbar');
+
+    // Pick group: button + switch toggle
+    const pickGroup = this._el('div', 'pick-group');
     this._pickBtn = this._btn('mdi:cursor-default-click', '選取元素', 'btn-primary', () => this._emit('pickRequest'));
+    pickGroup.appendChild(this._pickBtn);
+
+    this._pickSwitch = this._doc.createElement('div');
+    this._pickSwitch.className = 'pick-switch';
+    this._pickSwitchTrack = this._doc.createElement('div');
+    this._pickSwitchTrack.className = 'pick-switch-track';
+    const knob = this._doc.createElement('div');
+    knob.className = 'pick-switch-knob';
+    this._pickSwitchTrack.appendChild(knob);
+    this._pickSwitch.appendChild(this._pickSwitchTrack);
+    this._pickSwitch.addEventListener('click', () => this._emit('pickRequest'));
+    pickGroup.appendChild(this._pickSwitch);
+
     const exportBtn = this._btn('mdi:content-copy', '複製 Prompt', 'btn-success', () => this._emit('exportPrompt'));
     const clearBtn  = this._btn('mdi:trash-can-outline', '清除全部', 'btn-danger', () => {
       if (this._doc.defaultView.confirm('確定清除所有標註？')) this._emit('clear');
     });
-    const dlBtn    = this._btn('mdi:download', 'JSON', 'btn-neutral', () => this._emit('exportJSON'));
-    const ulBtn    = this._btn('mdi:upload', '匯入', 'btn-neutral', () => {
-      const json = this._doc.defaultView.prompt('貼上 JSON 內容：');
-      if (json) this._emit('importJSON', json);
-    });
-    const shareBtn = this._btn('mdi:share-variant', '分享', 'btn-neutral', () => this._emit('shareLink'));
     // Gear / cloud settings button — dot indicates configured state
     this._settingsBtn = this._doc.createElement('button');
     this._settingsBtn.className = 'btn btn-neutral';
@@ -478,7 +525,7 @@ export class PanelUI {
     this._settingsBtn.appendChild(this._icon('mdi:cloud-cog'));
     this._settingsBtn.appendChild(cloudDot);
     this._settingsBtn.addEventListener('click', () => this._toggleSettings());
-    tb.append(this._pickBtn, exportBtn, clearBtn, dlBtn, ulBtn, shareBtn, this._settingsBtn);
+    tb.append(pickGroup, exportBtn, clearBtn, this._settingsBtn);
     p.appendChild(tb);
 
     // Project bar with flyout toggle
@@ -510,7 +557,7 @@ export class PanelUI {
 
     // List
     this._listEl = this._el('div', 'list');
-    this._listEl.innerHTML = '<div class="empty">尚無標註。點擊「🎯 選取元素」開始。</div>';
+    this._listEl.innerHTML = '<div class="empty">尚無標註。點擊「選取元素」開始。</div>';
     p.appendChild(this._listEl);
   }
 
@@ -561,7 +608,7 @@ export class PanelUI {
     this._listEl.innerHTML = '';
 
     if (!comments.length) {
-      this._listEl.innerHTML = '<div class="empty">尚無標註。點擊「🎯 選取元素」開始。</div>';
+      this._listEl.innerHTML = '<div class="empty">尚無標註。點擊「選取元素」開始。</div>';
       return;
     }
 
@@ -738,6 +785,7 @@ export class PanelUI {
   setPickActive(active) {
     this._pickActive = active;
     if (this._pickBtn) this._pickBtn.classList.toggle('active', active);
+    if (this._pickSwitchTrack) this._pickSwitchTrack.classList.toggle('on', active);
   }
 
   showToast(msg) {

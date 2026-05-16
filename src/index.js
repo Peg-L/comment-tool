@@ -14,18 +14,7 @@ import { PanelUI } from './panel.js';
   }
 
   const doc = document;
-
-  // Detect shared data in URL hash and produce a clean URL for the store key
-  const sharedData = Exporter.decodeShareHash(location.hash);
-  let url;
-  if (location.hash.includes('__ct__=')) {
-    const newHash = location.hash.replace(/&?__ct__=[^&]*/g, '');
-    const base = location.href.split('#')[0];
-    url = (newHash && newHash !== '#') ? base + newHash : base;
-    try { history.replaceState(null, '', url); } catch (e) { /* ignore */ }
-  } else {
-    url = location.href;
-  }
+  const url = location.href;
 
   // ── Adapter ───────────────────────────────────────────────────────────────
   let adapter = getStore();
@@ -179,30 +168,6 @@ import { PanelUI } from './panel.js';
       const ok = await Exporter.copyToClipboard(prompt);
       panel.showToast(ok ? '✓ Prompt 已複製到剪貼簿' : '✗ 複製失敗，請手動複製');
     })
-    .on('exportJSON', async () => {
-      const json = await adapter.exportPageJSON(project, url);
-      const blob = new Blob([json], { type: 'application/json' });
-      const a = doc.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `comments-${project}-${Date.now()}.json`;
-      a.click();
-      URL.revokeObjectURL(a.href);
-    })
-    .on('importJSON', async (jsonString) => {
-      try {
-        await adapter.importPageJSON(project, url, document.title, jsonString);
-        await refresh();
-        panel.showToast('✓ 已匯入標註');
-      } catch {
-        panel.showToast('✗ JSON 格式錯誤');
-      }
-    })
-    .on('shareLink', async () => {
-      const comments = await adapter.getAnnotations(project, url);
-      const shareUrl = Exporter.toShareURL(url, comments);
-      const ok = await Exporter.copyToClipboard(shareUrl);
-      panel.showToast(ok ? '✓ 分享連結已複製到剪貼簿' : '✗ 複製失敗，請手動複製');
-    })
     .on('saveConfig', async ({ supabaseUrl, supabaseKey }) => {
       saveConfig({ supabaseUrl, supabaseKey });
       adapter = getStore();
@@ -221,27 +186,7 @@ import { PanelUI } from './panel.js';
     }
   });
 
-  // Auto-import shared annotations when the URL contains a share hash
-  let didImportShared = false;
-  if (sharedData?.comments?.length) {
-    const existing = await adapter.getAnnotations(project, url);
-    const doImport = existing.length === 0
-      || doc.defaultView.confirm(
-           `此連結含有 ${sharedData.comments.length} 筆共享標註。是否匯入？（將覆蓋目前的 ${existing.length} 筆標註）`
-         );
-    if (doImport) {
-      await adapter.importPageJSON(project, url, document.title,
-        JSON.stringify({ version: 1, comments: sharedData.comments })
-      );
-      didImportShared = true;
-    }
-  }
-
   await refresh();
-  if (didImportShared) {
-    const all = await adapter.getAnnotations(project, url);
-    panel.showToast(`✓ 已載入 ${all.length} 筆共享標註`);
-  }
 
   window.__commentToolActive = {
     toggle() {
