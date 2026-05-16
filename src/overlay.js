@@ -10,6 +10,7 @@ export class OverlayManager {
   constructor(doc) {
     this._doc = doc;
     this._badges = new Map(); // id → { badgeEl, element, missing }
+    this._visible = true;
     this._observer = null;
     this._onReposition = this._reposition.bind(this);
     this._onBadgeClick = null;
@@ -19,6 +20,7 @@ export class OverlayManager {
 
   renderAll(comments) {
     this.clearAll();
+    this._visible = true; // reset to visible on fresh render
     comments.forEach((c, i) => this._render(c, i + 1));
     this._startObserver();
   }
@@ -104,6 +106,34 @@ export class OverlayManager {
     this._badges.clear();
     this._stopObserver();
   }
+
+  /** Hide all overlay badges and element outlines without losing state. */
+  hide() {
+    if (!this._visible) return;
+    this._visible = false;
+    this._badges.forEach(({ badgeEl, element }) => {
+      if (badgeEl) badgeEl.style.display = 'none';
+      if (element) {
+        element.style.outline = element.dataset.__ctPrevOutline || '';
+        element.style.outlineOffset = element.dataset.__ctPrevOffset || '';
+      }
+    });
+  }
+
+  /** Restore all overlay badges and element outlines. */
+  show() {
+    if (this._visible) return;
+    this._visible = true;
+    this._badges.forEach(({ badgeEl, element }) => {
+      if (badgeEl) badgeEl.style.display = 'flex';
+      if (element) {
+        element.style.outline = `2px solid ${RED}`;
+        element.style.outlineOffset = '2px';
+      }
+    });
+  }
+
+  get isVisible() { return this._visible; }
 
   isMissing(id) { return this._badges.get(id)?.missing === true; }
 

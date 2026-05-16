@@ -76,6 +76,7 @@ iconify-icon { font-size: inherit; flex-shrink: 0; }
 .btn-danger  { background: #f38ba8; color: #1e1e2e; }
 .btn-success { background: #a6e3a1; color: #1e1e2e; }
 .btn-neutral { background: #313244; color: #cdd6f4; }
+.btn-teal    { background: #2dd4bf; color: #1e1e2e; }
 .btn.active  { background: #cba6f7; color: #1e1e2e; }
 .proj-bar {
   display: flex;
@@ -433,6 +434,7 @@ export class PanelUI {
     this._listEl = null;
     this._collapsed = false;
     this._pickActive = false;
+    this._visBtn = null;
     this._cbs = {};
     this._project = '';
     this._flyoutOpen = false;
@@ -491,6 +493,7 @@ export class PanelUI {
     const tb = this._el('div', 'toolbar');
 
     this._pickBtn = this._btn('mdi:cursor-default-click', '選取元素', 'btn-primary', () => this._emit('pickRequest'));
+    this._visBtn  = this._btn('mdi:eye-off-outline', '隱藏標註', 'btn-neutral', () => this._emit('toggleOverlay'));
     const exportBtn = this._btn('mdi:content-copy', '複製 Prompt', 'btn-success', () => this._emit('exportPrompt'));
     const clearBtn  = this._btn('mdi:trash-can-outline', '清除全部', 'btn-danger', () => {
       if (this._doc.defaultView.confirm('確定清除所有標註？')) this._emit('clear');
@@ -504,7 +507,7 @@ export class PanelUI {
     this._settingsBtn.appendChild(this._icon('mdi:cloud-cog'));
     this._settingsBtn.appendChild(cloudDot);
     this._settingsBtn.addEventListener('click', () => this._toggleSettings());
-    tb.append(this._pickBtn, exportBtn, clearBtn, this._settingsBtn);
+    tb.append(this._pickBtn, this._visBtn, exportBtn, clearBtn, this._settingsBtn);
     p.appendChild(tb);
 
     // Project bar with flyout toggle
@@ -777,6 +780,21 @@ export class PanelUI {
       this._pickBtn.className = 'btn btn-primary';
       if (icon)  icon.setAttribute('icon', 'mdi:cursor-default-click');
       if (label) label.textContent = '選取元素';
+    }
+  }
+
+  setOverlayVisible(visible) {
+    if (!this._visBtn) return;
+    const icon  = this._visBtn.querySelector('iconify-icon');
+    const label = this._visBtn.querySelector('span');
+    if (visible) {
+      this._visBtn.className = 'btn btn-neutral';
+      if (icon)  icon.setAttribute('icon', 'mdi:eye-off-outline');
+      if (label) label.textContent = '隱藏標註';
+    } else {
+      this._visBtn.className = 'btn btn-teal';
+      if (icon)  icon.setAttribute('icon', 'mdi:eye-outline');
+      if (label) label.textContent = '顯示標註';
     }
   }
 

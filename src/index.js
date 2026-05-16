@@ -161,6 +161,16 @@ import { PanelUI } from './panel.js';
       await adapter.clearAnnotations(project, url);
       overlay.clearAll();
       panel.refresh([], () => false);
+      panel.setOverlayVisible(true);
+    })
+    .on('toggleOverlay', () => {
+      if (overlay.isVisible) {
+        overlay.hide();
+        panel.setOverlayVisible(false);
+      } else {
+        overlay.show();
+        panel.setOverlayVisible(true);
+      }
     })
     .on('exportPrompt', async () => {
       const comments = await adapter.getAnnotations(project, url);
