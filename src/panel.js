@@ -89,13 +89,31 @@ iconify-icon { font-size: inherit; flex-shrink: 0; }
   color: #a6adc8;
 }
 .list-header {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px 4px;
+}
+.list-header-title {
+  flex: 1;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.5px;
   text-transform: uppercase;
   color: #6c7086;
-  padding: 8px 12px 4px;
 }
+.list-header-clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #6c7086;
+  font-size: 16px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+.list-header-clear:hover { color: #f38ba8; }
 .list {
   flex: 1;
   overflow-y: auto;
@@ -446,6 +464,8 @@ export class PanelUI {
     this._settingsEl = null;
     this._settingsBtn = null;
     this._cloudConfigured = false;
+    this._noProject = false;
+    this._clearBtn = null;
   }
 
   on(event, cb) { this._cbs[event] = cb; return this; }
@@ -495,9 +515,6 @@ export class PanelUI {
     this._pickBtn = this._btn('mdi:cursor-default-click', '選取元素', 'btn-primary', () => this._emit('pickRequest'));
     this._visBtn  = this._btn('mdi:eye-off-outline', '隱藏標註', 'btn-neutral', () => this._emit('toggleOverlay'));
     const exportBtn = this._btn('mdi:content-copy', '複製 Prompt', 'btn-success', () => this._emit('exportPrompt'));
-    const clearBtn  = this._btn('mdi:trash-can-outline', '清除全部', 'btn-danger', () => {
-      if (this._doc.defaultView.confirm('確定清除所有標註？')) this._emit('clear');
-    });
     // Gear / cloud settings button — dot indicates configured state
     this._settingsBtn = this._doc.createElement('button');
     this._settingsBtn.className = 'btn btn-neutral';
@@ -507,7 +524,7 @@ export class PanelUI {
     this._settingsBtn.appendChild(this._icon('mdi:cloud-cog'));
     this._settingsBtn.appendChild(cloudDot);
     this._settingsBtn.addEventListener('click', () => this._toggleSettings());
-    tb.append(this._pickBtn, this._visBtn, exportBtn, clearBtn, this._settingsBtn);
+    tb.append(this._pickBtn, this._visBtn, exportBtn, this._settingsBtn);
     p.appendChild(tb);
 
     // Project bar with flyout toggle
@@ -534,8 +551,18 @@ export class PanelUI {
     this._buildSettings();
     p.appendChild(this._settingsEl);
 
-    // List header
-    p.appendChild(this._el('div', 'list-header', '標註清單'));
+    // List header with clear button on right
+    const listHdr = this._el('div', 'list-header');
+    listHdr.appendChild(this._el('span', 'list-header-title', '標註清單'));
+    this._clearBtn = this._doc.createElement('button');
+    this._clearBtn.className = 'list-header-clear';
+    this._clearBtn.title = '清除全部標註';
+    this._clearBtn.appendChild(this._icon('mdi:trash-can-outline'));
+    this._clearBtn.addEventListener('click', () => {
+      if (this._doc.defaultView.confirm('確定清除所有標註？')) this._emit('clear');
+    });
+    listHdr.appendChild(this._clearBtn);
+    p.appendChild(listHdr);
 
     // List
     this._listEl = this._el('div', 'list');
@@ -645,7 +672,7 @@ export class PanelUI {
     this._project = name;
     if (this._projFlyoutBtn) {
       const nameSpan = this._projFlyoutBtn.querySelector('.proj-name');
-      if (nameSpan) nameSpan.textContent = name || '（未命名）';
+      if (nameSpan) nameSpan.textContent = name || '請選擇或建立專案';
     }
   }
 
@@ -795,6 +822,18 @@ export class PanelUI {
       this._visBtn.className = 'btn btn-teal';
       if (icon)  icon.setAttribute('icon', 'mdi:eye-outline');
       if (label) label.textContent = '顯示標註';
+    }
+  }
+
+  setNoProject(val) {
+    this._noProject = !!val;
+    if (this._pickBtn) {
+      this._pickBtn.disabled = this._noProject;
+      this._pickBtn.style.opacity = this._noProject ? '0.4' : '';
+      this._pickBtn.style.cursor  = this._noProject ? 'not-allowed' : '';
+    }
+    if (this._listEl && this._noProject) {
+      this._listEl.innerHTML = '<div class="empty">請先建立或選擇一個專案，才能開始標註。</div>';
     }
   }
 

@@ -26,17 +26,14 @@ import { PanelUI } from './panel.js';
   panel.mount();
 
   // ── Project resolution ───────────────────────────────────────────────────
-  let project = getCurrentProject();
-  if (!project) {
-    project = 'default';
-    await adapter.createProject(project);
-    setCurrentProject(project);
-  }
+  let project = getCurrentProject() || '';
 
   panel.setProject(project);
+  if (!project) panel.setNoProject(true);
   panel.setCloudConfigured(!!(loadConfig().supabaseUrl));
 
   async function refresh() {
+    if (!project) return;
     const comments = await adapter.getAnnotations(project, url);
     overlay.renderAll(comments);
     panel.refresh(comments, (id) => overlay.isMissing(id), (id) => overlay.pulse(id));
@@ -103,6 +100,7 @@ import { PanelUI } from './panel.js';
       project = name;
       setCurrentProject(project);
       panel.setProject(project);
+      panel.setNoProject(false);
       await refresh();
     })
     .on('deleteProject', async ({ name }) => {
@@ -110,12 +108,19 @@ import { PanelUI } from './panel.js';
 
       if (name === project) {
         const remaining = await adapter.listProjects();
-        project = remaining[0]?.name ?? 'default';
-        if (!remaining.length) await adapter.createProject('default');
-        setCurrentProject(project);
         overlay.clearAll();
-        panel.setProject(project);
-        await refresh();
+        if (remaining.length) {
+          project = remaining[0].name;
+          setCurrentProject(project);
+          panel.setProject(project);
+          panel.setNoProject(false);
+          await refresh();
+        } else {
+          project = '';
+          setCurrentProject('');
+          panel.setProject('');
+          panel.setNoProject(true);
+        }
       }
 
       await refreshFlyout();
