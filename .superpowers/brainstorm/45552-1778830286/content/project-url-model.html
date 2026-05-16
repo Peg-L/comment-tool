@@ -1,0 +1,40 @@
+<h2>一個專案 → 多個頁面，怎麼切換？</h2>
+<p class="subtitle">例如專案「sprint-1」裡同時標了 /dashboard 和 /settings</p>
+
+<div class="options">
+  <div class="option" data-choice="single-url" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>每個專案只綁定一個 URL</h3>
+      <p>建立專案時指定一個主頁面，切換就直接跳到那頁。簡單明確，適合每次只看一個頁面。</p>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>優點</h4><ul><li>操作最簡單</li><li>切換即導航</li></ul></div>
+        <div class="cons"><h4>缺點</h4><ul><li>無法標多頁</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="multi-url-list" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>專案有多頁，選專案後再選頁面</h3>
+      <p>選專案 → 展開頁面清單 → 點頁面才開啟。適合需要跨多頁標註的工作流程。</p>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>優點</h4><ul><li>支援多頁標註</li><li>有完整的專案全貌</li></ul></div>
+        <div class="cons"><h4>缺點</h4><ul><li>多一層操作</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="auto-current" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>切換專案 = 換到「這個頁面」的標註</h3>
+      <p>不導航到其他頁，只是把「目前這頁」換成另一個專案的標註。URL 不變，只換標註組。</p>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>優點</h4><ul><li>不離開目前頁面</li><li>方便比較不同版本的標註</li></ul></div>
+        <div class="cons"><h4>缺點</h4><ul><li>不會跳頁，需要自己導航</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>

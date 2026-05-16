@@ -36,6 +36,37 @@ export class Exporter {
   }
 
   /**
+   * Encode comments into a shareable URL using the URL hash (#__ct__=…).
+   * @param {string} pageUrl - Current page URL (without __ct__ fragment)
+   * @param {Array}  comments
+   * @returns {string} Share URL
+   */
+  static toShareURL(pageUrl, comments) {
+    const payload = JSON.stringify({ version: 1, comments });
+    const b64 = btoa(unescape(encodeURIComponent(payload)));
+    const hashIndex = pageUrl.indexOf('#');
+    const base     = hashIndex === -1 ? pageUrl : pageUrl.slice(0, hashIndex);
+    const existing = hashIndex === -1 ? '' : pageUrl.slice(hashIndex + 1).replace(/&?__ct__=[^&]*/g, '');
+    const newHash  = existing ? `${existing}&__ct__=${b64}` : `__ct__=${b64}`;
+    return `${base}#${newHash}`;
+  }
+
+  /**
+   * Decode shared comment data from a URL hash.
+   * @param {string} hash - location.hash (e.g. "#__ct__=abc123")
+   * @returns {{ version: number, comments: Array }|null}
+   */
+  static decodeShareHash(hash) {
+    const m = (hash || '').replace(/^#/, '').match(/(?:^|&)__ct__=([^&]+)/);
+    if (!m) return null;
+    try {
+      return JSON.parse(decodeURIComponent(escape(atob(m[1]))));
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Copy text to clipboard. Falls back to execCommand for HTTP pages.
    * @returns {Promise<boolean>}
    */

@@ -1,0 +1,28 @@
+<h2>選了專案，但沒點頁面，現在這頁怎麼處理？</h2>
+<p class="subtitle">你在 example.com/settings，flyout 裡切換到了另一個專案</p>
+
+<div class="options">
+  <div class="option" data-choice="switch-and-stay" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>切換專案 + 留在這頁（推薦）</h3>
+      <p>
+        立刻把這頁的標註換成新專案的資料。<br>
+        如果新專案在這頁沒有任何標註，面板顯示空白，可以開始新增。<br>
+        flyout 裡的頁面清單是「快速導航」的附加功能，不是切換的必要步驟。
+      </p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="require-page" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>必須點頁面才算切換</h3>
+      <p>
+        選專案只是「預覽」，展開它的頁面清單。<br>
+        真正切換 = 點一個頁面連結，跳過去後才切換。<br>
+        如果沒有點頁面就關掉 flyout，什麼都不變。
+      </p>
+    </div>
+  </div>
+</div>

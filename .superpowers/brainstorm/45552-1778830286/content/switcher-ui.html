@@ -1,0 +1,68 @@
+<h2>專案切換 UI 放哪裡？</h2>
+<p class="subtitle">選 B（多頁模型）之後，切換介面的位置和形式</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="inline-dropdown" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1e1e2e;border-radius:8px;padding:10px;font-size:12px;color:#cdd6f4;width:240px;font-family:monospace;">
+        <div style="background:#181825;padding:6px 8px;border-bottom:1px solid #313244;display:flex;gap:6px;flex-wrap:wrap;">
+          <span style="background:#89b4fa;color:#1e1e2e;padding:2px 7px;border-radius:4px;font-size:11px;">🎯 選取</span>
+          <span style="background:#a6e3a1;color:#1e1e2e;padding:2px 7px;border-radius:4px;font-size:11px;">📋 Prompt</span>
+          <span style="background:#313244;color:#cdd6f4;padding:2px 7px;border-radius:4px;font-size:11px;">🔗 分享</span>
+        </div>
+        <div style="background:#181825;padding:6px 8px;border-bottom:1px solid #313244;display:flex;align-items:center;gap:6px;">
+          <span style="color:#888;font-size:11px;">📁</span>
+          <select style="background:#313244;color:#cdd6f4;border:none;border-radius:4px;padding:3px 6px;font-size:12px;flex:1;">
+            <option>sprint-1 ▾</option>
+          </select>
+          <span style="background:#313244;color:#cdd6f4;padding:2px 6px;border-radius:4px;font-size:11px;cursor:pointer;">＋</span>
+        </div>
+        <div style="padding:6px 8px;background:#252535;border-bottom:1px solid #313244;">
+          <div style="color:#888;font-size:10px;margin-bottom:4px;">此專案的頁面</div>
+          <div style="color:#89b4fa;font-size:11px;padding:2px 0;cursor:pointer;">↗ /dashboard <span style="color:#585869">3 筆</span></div>
+          <div style="color:#89b4fa;font-size:11px;padding:2px 0;cursor:pointer;">↗ /settings <span style="color:#585869">1 筆</span></div>
+        </div>
+        <div style="padding:8px;color:#888;font-size:11px;">標註清單…</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A：內嵌下拉選單</h3>
+      <p>專案名稱直接是個 <code>&lt;select&gt;</code> 下拉，旁邊有「＋」新增。面板下方展示目前專案的所有頁面，可點開導航。常駐可見，不需額外點擊。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="flyout" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1e1e2e;border-radius:8px;padding:10px;font-size:12px;color:#cdd6f4;width:240px;font-family:monospace;">
+        <div style="background:#181825;padding:6px 8px;border-bottom:1px solid #313244;display:flex;gap:6px;flex-wrap:wrap;">
+          <span style="background:#89b4fa;color:#1e1e2e;padding:2px 7px;border-radius:4px;font-size:11px;">🎯 選取</span>
+          <span style="background:#a6e3a1;color:#1e1e2e;padding:2px 7px;border-radius:4px;font-size:11px;">📋 Prompt</span>
+          <span style="background:#313244;color:#cdd6f4;padding:2px 7px;border-radius:4px;font-size:11px;">🔗 分享</span>
+        </div>
+        <div style="background:#181825;padding:6px 8px;border-bottom:1px solid #313244;display:flex;align-items:center;gap:6px;">
+          <span style="color:#888;font-size:11px;">📁</span>
+          <button style="background:#313244;color:#cdd6f4;border:none;border-radius:4px;padding:3px 8px;font-size:12px;cursor:pointer;flex:1;text-align:left;">sprint-1 ▾</button>
+        </div>
+        <!-- flyout panel -->
+        <div style="position:relative;">
+          <div style="background:#2a2a3e;border:1px solid #45475a;border-radius:6px;padding:8px;margin:4px;font-size:11px;box-shadow:0 4px 16px rgba(0,0,0,0.4);">
+            <div style="color:#888;font-size:10px;margin-bottom:4px;">專案</div>
+            <div style="background:#313244;color:#cdd6f4;padding:4px 8px;border-radius:4px;margin-bottom:2px;">✓ sprint-1</div>
+            <div style="color:#cdd6f4;padding:4px 8px;margin-bottom:2px;">design-v2</div>
+            <div style="color:#cdd6f4;padding:4px 8px;margin-bottom:6px;">ux-review</div>
+            <div style="border-top:1px solid #313244;padding-top:6px;color:#888;font-size:10px;margin-bottom:4px;">sprint-1 的頁面</div>
+            <div style="color:#89b4fa;padding:2px 0;">↗ /dashboard (3)</div>
+            <div style="color:#89b4fa;padding:2px 0;">↗ /settings (1)</div>
+            <div style="border-top:1px solid #313244;padding-top:6px;margin-top:4px;color:#a6e3a1;cursor:pointer;">＋ 新增專案…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B：按鈕展開 Flyout</h3>
+      <p>專案名稱是個按鈕，點下去展開一個浮動選單：上半是所有專案、下半是此專案的頁面清單，底部有新增。不佔用面板固定空間。</p>
+    </div>
+  </div>
+
+</div>

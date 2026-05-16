@@ -1,0 +1,69 @@
+<h2>目前的儲存架構</h2>
+<p class="subtitle">了解現狀，再討論怎麼改進</p>
+
+<div class="section">
+  <div class="label">localStorage 的 key 格式</div>
+  <div style="background:#1a1a2e;border-radius:8px;padding:16px;font-family:monospace;font-size:14px;color:#a6e3a1;margin-top:8px;">
+    comment-tool:<span style="color:#89b4fa">&lt;project&gt;</span>:<span style="color:#f9e2af">&lt;full-url&gt;</span>
+  </div>
+  <p style="margin-top:8px;font-size:13px;color:#888;">例如：<code style="color:#cdd6f4">comment-tool:sprint-1:https://myapp.com/dashboard?tab=overview</code></p>
+</div>
+
+<div class="section">
+  <div class="label">目前的行為</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;">
+    <div style="background:#2a1a2e;border:1px solid #f38ba8;border-radius:8px;padding:12px;">
+      <div style="color:#f38ba8;font-weight:600;margin-bottom:6px;">⚠ 潛在問題</div>
+      <ul style="margin:0;padding-left:16px;font-size:13px;line-height:1.8;">
+        <li>專案名稱是<strong>全域</strong>的，不分網站</li>
+        <li>URL 含 query params → 同一頁面可能變成兩筆</li>
+        <li>跨分頁開啟工具，會沿用上次的專案名稱</li>
+        <li>無法看到一個專案裡有哪些頁面</li>
+      </ul>
+    </div>
+    <div style="background:#1a2e1a;border:1px solid #a6e3a1;border-radius:8px;padding:12px;">
+      <div style="color:#a6e3a1;font-weight:600;margin-bottom:6px;">✓ 運作良好</div>
+      <ul style="margin:0;padding-left:16px;font-size:13px;line-height:1.8;">
+        <li>資料立即持久化，不需手動儲存</li>
+        <li>同專案、同 URL 的標註自動合併</li>
+        <li>可建立多個專案做隔離</li>
+        <li>可以刪除整個專案</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="label">你最想解決哪個問題？</div>
+  <div class="options" style="margin-top:8px;">
+    <div class="option" data-choice="url-scope" onclick="toggleSelect(this)">
+      <div class="letter">A</div>
+      <div class="content">
+        <h3>URL 太精確</h3>
+        <p>同一個頁面因 query params 不同，標註分散在多筆</p>
+      </div>
+    </div>
+    <div class="option" data-choice="project-scope" onclick="toggleSelect(this)">
+      <div class="letter">B</div>
+      <div class="content">
+        <h3>專案沒有網站歸屬</h3>
+        <p>在不同網站開工具，都看到同一批專案，容易混亂</p>
+      </div>
+    </div>
+    <div class="option" data-choice="no-overview" onclick="toggleSelect(this)">
+      <div class="letter">C</div>
+      <div class="content">
+        <h3>看不到專案全貌</h3>
+        <p>不知道一個專案裡標了哪些頁面、共幾筆標註</p>
+      </div>
+    </div>
+    <div class="option" data-choice="switch-ux" onclick="toggleSelect(this)">
+      <div class="letter">D</div>
+      <div class="content">
+        <h3>切換專案的操作體驗</h3>
+        <p>想要更快速、更直覺的方式在專案間切換</p>
+      </div>
+    </div>
+  </div>
+  <p style="font-size:12px;color:#666;margin-top:8px;">可多選，也可直接在右邊終端機用文字說明</p>
+</div>

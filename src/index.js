@@ -1,11 +1,12 @@
 // src/index.js
-import { CommentStore, getCurrentProject, setCurrentProject, listProjects, listProjectPages, createProject, deleteProject } from './store.js';
+import { getCurrentProject, setCurrentProject, createProject, deleteProject } from './store.js';
+import { getStore, saveConfig, loadConfig } from './store-factory.js';
 import { ElementPicker } from './picker.js';
 import { OverlayManager } from './overlay.js';
 import { Exporter } from './exporter.js';
 import { PanelUI } from './panel.js';
 
-(function initCommentTool() {
+(async function initCommentTool() {
   // Re-click bookmarklet = toggle panel
   if (window.__commentToolActive) {
     window.__commentToolActive.toggle();
@@ -26,6 +27,9 @@ import { PanelUI } from './panel.js';
     url = location.href;
   }
 
+  // ── Adapter ───────────────────────────────────────────────────────────────
+  let adapter = getStore();
+
   // ── Module init (panel first — needed for project dialog) ─────────────────
   const picker  = new ElementPicker(doc);
   const overlay = new OverlayManager(doc);
@@ -36,38 +40,38 @@ import { PanelUI } from './panel.js';
   let project = getCurrentProject();
   if (!project) {
     project = 'default';
-    createProject(project);
+    await adapter.createProject(project);
     setCurrentProject(project);
   }
 
-  // ── Store ─────────────────────────────────────────────────────────────────
-  let store = new CommentStore(project, url);
   panel.setProject(project);
+  panel.setCloudConfigured(!!(loadConfig().supabaseUrl));
 
-  function refresh() {
-    const comments = store.getAll();
+  async function refresh() {
+    const comments = await adapter.getAnnotations(project, url);
     overlay.renderAll(comments);
     panel.refresh(comments, (id) => overlay.isMissing(id));
   }
 
-  function refreshFlyout() {
-    const projects = listProjects();
-    const pagesMap = Object.fromEntries(
-      projects.map(p => [p, listProjectPages(p)])
-    );
-    panel.setFlyoutData(projects, pagesMap);
+  async function refreshFlyout() {
+    const projects = await adapter.listProjects();
+    const pagesMap = {};
+    for (const p of projects) {
+      pagesMap[p.name] = await adapter.listProjectPages(p.id);
+    }
+    panel.setFlyoutData(projects.map(p => p.name), pagesMap);
   }
 
   // ── Edit helper (shared by badge click + sidebar edit button) ─────────────
   async function openEditDialog(id, anchorX, anchorY) {
-    const comment = store.getAll().find(c => c.id === id);
+    const comments = await adapter.getAnnotations(project, url);
+    const comment = comments.find(c => c.id === id);
     if (!comment) return;
 
     const el = doc.querySelector(comment.selector);
     let x = anchorX, y = anchorY;
 
     if (x == null || y == null) {
-      // Called from sidebar — scroll element into view first, then position dialog
       if (el) {
         el.scrollIntoView({ behavior: 'instant', block: 'center' });
         const r = el.getBoundingClientRect();
@@ -80,11 +84,11 @@ import { PanelUI } from './panel.js';
 
     const result = await panel.showDialogAt(x, y, { existing: comment.text, showDelete: true });
     if (result.action === 'save' && result.text) {
-      store.update(id, result.text);
-      refresh();
+      await adapter.updateAnnotation(id, result.text, project, url);
+      await refresh();
     } else if (result.action === 'delete') {
-      store.delete(id);
-      refresh();
+      await adapter.deleteAnnotation(id, project, url);
+      await refresh();
     }
   }
 
@@ -103,31 +107,29 @@ import { PanelUI } from './panel.js';
         setCurrentProject(project);
       }
     })
-    .on('createProject', ({ name }) => {
+    .on('createProject', async ({ name }) => {
       if (!name) return;
-      createProject(name);
+      await adapter.createProject(name);
       overlay.clearAll();
       project = name;
       setCurrentProject(project);
-      store = new CommentStore(project, url);
       panel.setProject(project);
-      refresh();
+      await refresh();
     })
-    .on('deleteProject', ({ name }) => {
-      deleteProject(name);
+    .on('deleteProject', async ({ name }) => {
+      await adapter.deleteProject(name);
 
       if (name === project) {
-        const remaining = listProjects();
-        project = remaining[0] ?? 'default';
-        if (!remaining.length) createProject('default');
+        const remaining = await adapter.listProjects();
+        project = remaining[0]?.name ?? 'default';
+        if (!remaining.length) await adapter.createProject('default');
         setCurrentProject(project);
-        store = new CommentStore(project, url);
         overlay.clearAll();
         panel.setProject(project);
-        refresh();
+        await refresh();
       }
 
-      refreshFlyout();
+      await refreshFlyout();
     })
     .on('pickRequest', () => {
       if (picker.isActive) {
@@ -140,39 +142,45 @@ import { PanelUI } from './panel.js';
         onPick: async ({ selector, label, meta, rect }) => {
           const x = rect ? rect.right : doc.defaultView.innerWidth / 2;
           const y = rect ? rect.top  : doc.defaultView.innerHeight / 2;
-          // If this selector already has an annotation, open it for editing instead of creating a new one
-          const existing = store.getAll().find(c => c.selector === selector);
+          const comments = await adapter.getAnnotations(project, url);
+          const existing = comments.find(c => c.selector === selector);
           if (existing) {
             await openEditDialog(existing.id, x, y);
           } else {
             const result = await panel.showDialogAt(x, y, { existing: '', showDelete: false });
             if (result.action === 'save' && result.text) {
-              store.add(selector, label, result.text, meta);
-              refresh();
+              await adapter.addAnnotation(project, url, document.title, {
+                selector,
+                elementLabel: label,
+                text: result.text,
+                meta,
+              });
+              await refresh();
             }
           }
-          picker.resume(); // stay in pick mode until button is clicked again
+          picker.resume();
         },
         onCancel: () => panel.setPickActive(false),
       });
     })
     .on('edit', (id) => openEditDialog(id))
-    .on('delete', (id) => {
-      store.delete(id);
-      refresh();
+    .on('delete', async (id) => {
+      await adapter.deleteAnnotation(id, project, url);
+      await refresh();
     })
-    .on('clear', () => {
-      store.clear();
+    .on('clear', async () => {
+      await adapter.clearAnnotations(project, url);
       overlay.clearAll();
       panel.refresh([], () => false);
     })
     .on('exportPrompt', async () => {
-      const prompt = Exporter.toPrompt(url, store.getAll());
+      const comments = await adapter.getAnnotations(project, url);
+      const prompt = Exporter.toPrompt(url, comments);
       const ok = await Exporter.copyToClipboard(prompt);
       panel.showToast(ok ? '✓ Prompt 已複製到剪貼簿' : '✗ 複製失敗，請手動複製');
     })
-    .on('exportJSON', () => {
-      const json = store.exportJSON();
+    .on('exportJSON', async () => {
+      const json = await adapter.exportPageJSON(project, url);
       const blob = new Blob([json], { type: 'application/json' });
       const a = doc.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -180,19 +188,26 @@ import { PanelUI } from './panel.js';
       a.click();
       URL.revokeObjectURL(a.href);
     })
-    .on('importJSON', (jsonString) => {
+    .on('importJSON', async (jsonString) => {
       try {
-        store.importJSON(jsonString);
-        refresh();
+        await adapter.importPageJSON(project, url, document.title, jsonString);
+        await refresh();
         panel.showToast('✓ 已匯入標註');
       } catch {
         panel.showToast('✗ JSON 格式錯誤');
       }
     })
     .on('shareLink', async () => {
-      const shareUrl = Exporter.toShareURL(url, store.getAll());
+      const comments = await adapter.getAnnotations(project, url);
+      const shareUrl = Exporter.toShareURL(url, comments);
       const ok = await Exporter.copyToClipboard(shareUrl);
       panel.showToast(ok ? '✓ 分享連結已複製到剪貼簿' : '✗ 複製失敗，請手動複製');
+    })
+    .on('saveConfig', async ({ supabaseUrl, supabaseKey }) => {
+      saveConfig({ supabaseUrl, supabaseKey });
+      adapter = getStore();
+      panel.setCloudConfigured(true);
+      panel.showToast('✓ 雲端設定已儲存，重新整理以套用');
     });
 
   // ── Badge click → edit dialog ─────────────────────────────────────────────
@@ -209,19 +224,24 @@ import { PanelUI } from './panel.js';
   // Auto-import shared annotations when the URL contains a share hash
   let didImportShared = false;
   if (sharedData?.comments?.length) {
-    const existing = store.getAll();
+    const existing = await adapter.getAnnotations(project, url);
     const doImport = existing.length === 0
       || doc.defaultView.confirm(
            `此連結含有 ${sharedData.comments.length} 筆共享標註。是否匯入？（將覆蓋目前的 ${existing.length} 筆標註）`
          );
     if (doImport) {
-      store.importJSON(JSON.stringify({ version: 1, comments: sharedData.comments }));
+      await adapter.importPageJSON(project, url, document.title,
+        JSON.stringify({ version: 1, comments: sharedData.comments })
+      );
       didImportShared = true;
     }
   }
 
-  refresh();
-  if (didImportShared) panel.showToast(`✓ 已載入 ${store.getAll().length} 筆共享標註`);
+  await refresh();
+  if (didImportShared) {
+    const all = await adapter.getAnnotations(project, url);
+    panel.showToast(`✓ 已載入 ${all.length} 筆共享標註`);
+  }
 
   window.__commentToolActive = {
     toggle() {
@@ -232,4 +252,5 @@ import { PanelUI } from './panel.js';
     },
   };
 })();
+
 

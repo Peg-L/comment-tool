@@ -363,6 +363,34 @@ iconify-icon { font-size: inherit; flex-shrink: 0; }
   font-family: inherit;
 }
 .proj-add-input:focus { border-color: #89b4fa; }
+/* ── Settings overlay ── */
+.settings-overlay {
+  display: none;
+  flex-direction: column;
+  background: #181825;
+  border-bottom: 1px solid #313244;
+  padding: 12px;
+  gap: 10px;
+}
+.settings-overlay.open { display: flex; }
+.settings-title {
+  font-size: 12px; font-weight: 700; color: #cdd6f4;
+  display: flex; align-items: center; gap: 6px;
+}
+.cloud-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #6c7086; flex-shrink: 0; transition: background 0.3s;
+}
+.cloud-dot.active { background: #a6e3a1; }
+.settings-field { display: flex; flex-direction: column; gap: 4px; }
+.settings-label { font-size: 11px; color: #6c7086; }
+.settings-input {
+  background: #313244; border: 1px solid #45475a; border-radius: 5px;
+  color: #cdd6f4; font-size: 12px; padding: 5px 8px; outline: none;
+  font-family: monospace; width: 100%; box-sizing: border-box;
+}
+.settings-input:focus { border-color: #89b4fa; }
+.settings-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 2px; }
 `;
 
 export class PanelUI {
@@ -381,6 +409,10 @@ export class PanelUI {
     this._flyoutEl = null;
     this._projFlyoutBtn = null;
     this._flyoutOutsideHandler = null;
+    this._settingsOpen = false;
+    this._settingsEl = null;
+    this._settingsBtn = null;
+    this._cloudConfigured = false;
   }
 
   on(event, cb) { this._cbs[event] = cb; return this; }
@@ -437,7 +469,16 @@ export class PanelUI {
       if (json) this._emit('importJSON', json);
     });
     const shareBtn = this._btn('mdi:share-variant', '分享', 'btn-neutral', () => this._emit('shareLink'));
-    tb.append(this._pickBtn, exportBtn, clearBtn, dlBtn, ulBtn, shareBtn);
+    // Gear / cloud settings button — dot indicates configured state
+    this._settingsBtn = this._doc.createElement('button');
+    this._settingsBtn.className = 'btn btn-neutral';
+    this._settingsBtn.title = '雲端設定';
+    const cloudDot = this._doc.createElement('span');
+    cloudDot.className = 'cloud-dot' + (this._cloudConfigured ? ' active' : '');
+    this._settingsBtn.appendChild(this._icon('mdi:cloud-cog'));
+    this._settingsBtn.appendChild(cloudDot);
+    this._settingsBtn.addEventListener('click', () => this._toggleSettings());
+    tb.append(this._pickBtn, exportBtn, clearBtn, dlBtn, ulBtn, shareBtn, this._settingsBtn);
     p.appendChild(tb);
 
     // Project bar with flyout toggle
@@ -458,6 +499,11 @@ export class PanelUI {
     // Flyout (hidden until toggled open)
     this._flyoutEl = this._el('div', 'proj-flyout');
     p.appendChild(this._flyoutEl);
+
+    // Settings overlay (hidden until toggled)
+    this._settingsEl = this._el('div', 'settings-overlay');
+    this._buildSettings();
+    p.appendChild(this._settingsEl);
 
     // List header
     p.appendChild(this._el('div', 'list-header', '標註清單'));
@@ -760,6 +806,86 @@ export class PanelUI {
     });
   }
 
+  setCloudConfigured(val) {
+    this._cloudConfigured = val;
+    if (this._settingsBtn) {
+      const dot = this._settingsBtn.querySelector('.cloud-dot');
+      if (dot) dot.className = 'cloud-dot' + (val ? ' active' : '');
+    }
+  }
+
+  _buildSettings() {
+    const el = this._settingsEl;
+    el.innerHTML = '';
+
+    const title = this._el('div', 'settings-title');
+    title.appendChild(this._icon('mdi:cloud-sync'));
+    title.appendChild(document.createTextNode(' 雲端同步設定 (Supabase)'));
+    el.appendChild(title);
+
+    const urlField = this._el('div', 'settings-field');
+    urlField.appendChild(this._el('label', 'settings-label', 'Project URL'));
+    const urlInput = this._doc.createElement('input');
+    urlInput.type = 'text'; urlInput.className = 'settings-input';
+    urlInput.placeholder = 'https://xxxx.supabase.co';
+    urlField.appendChild(urlInput);
+    el.appendChild(urlField);
+
+    const keyField = this._el('div', 'settings-field');
+    keyField.appendChild(this._el('label', 'settings-label', 'Anon Key'));
+    const keyInput = this._doc.createElement('input');
+    keyInput.type = 'password'; keyInput.className = 'settings-input';
+    keyInput.placeholder = 'eyJ…';
+    keyField.appendChild(keyInput);
+    el.appendChild(keyField);
+
+    // Load existing values
+    try {
+      const cfg = JSON.parse(localStorage.getItem('comment-tool-config') || '{}');
+      if (cfg.supabaseUrl) urlInput.value = cfg.supabaseUrl;
+      if (cfg.supabaseKey) keyInput.value = cfg.supabaseKey;
+    } catch { /* ignore */ }
+
+    const actions = this._el('div', 'settings-actions');
+    const cancelBtn = this._btn('mdi:close', '取消', 'btn-neutral', () => this._toggleSettings());
+    const clearBtn  = this._btn('mdi:cloud-off', '清除 (用本地)', 'btn-danger', () => {
+      localStorage.removeItem('comment-tool-config');
+      this.setCloudConfigured(false);
+      this._toggleSettings();
+      this.showToast('✓ 已切換回本地儲存');
+    });
+    const saveBtn   = this._btn('mdi:content-save', '儲存', 'btn-primary', () => {
+      const supabaseUrl = urlInput.value.trim();
+      const supabaseKey = keyInput.value.trim();
+      if (!supabaseUrl || !supabaseKey) { this.showToast('請填寫 URL 和 Key'); return; }
+      this._emit('saveConfig', { supabaseUrl, supabaseKey });
+      this._toggleSettings();
+    });
+    actions.append(clearBtn, cancelBtn, saveBtn);
+    el.appendChild(actions);
+
+    [urlInput, keyInput].forEach(inp => {
+      inp.addEventListener('keydown', e => {
+        if (e.key === 'Escape') this._toggleSettings();
+        if (e.key === 'Enter') saveBtn.click();
+        e.stopPropagation();
+      });
+    });
+  }
+
+  _toggleSettings() {
+    this._settingsOpen = !this._settingsOpen;
+    if (this._settingsEl) {
+      if (this._settingsOpen) {
+        this._buildSettings(); // refresh values each time opened
+        this._settingsEl.classList.add('open');
+      } else {
+        this._settingsEl.classList.remove('open');
+      }
+    }
+    if (this._settingsBtn) this._settingsBtn.classList.toggle('active', this._settingsOpen);
+  }
+
   unmount() {
     this._closeFlyout();
     if (this._host) {
@@ -768,6 +894,8 @@ export class PanelUI {
       this._shadow = null;
       this._flyoutEl = null;
       this._projFlyoutBtn = null;
+      this._settingsEl = null;
+      this._settingsBtn = null;
     }
   }
 }

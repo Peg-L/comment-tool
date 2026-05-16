@@ -171,3 +171,59 @@ export class CommentStore {
     this._save();
   }
 }
+
+/**
+ * LocalAdapter — wraps all localStorage operations behind the async StorageAdapter interface.
+ * Used as fallback when no Supabase config is present.
+ */
+export class LocalAdapter {
+  // ── Projects ─────────────────────────────────────────────────────────────
+
+  async listProjects() {
+    return listProjects().map(name => ({ id: name, name }));
+  }
+
+  async createProject(name) {
+    createProject(name);
+    return { id: name, name };
+  }
+
+  async deleteProject(id) {
+    deleteProject(id);
+  }
+
+  async listProjectPages(projectId) {
+    return listProjectPages(projectId);
+  }
+
+  // ── Annotations ───────────────────────────────────────────────────────────
+
+  async getAnnotations(projectId, pageUrl) {
+    return new CommentStore(projectId, pageUrl).getAll();
+  }
+
+  async addAnnotation(projectId, pageUrl, _pageTitle, { selector, elementLabel, text, meta }) {
+    const cs = new CommentStore(projectId, pageUrl);
+    return cs.add(selector, elementLabel, text, meta);
+  }
+
+  async updateAnnotation(id, text, projectId, pageUrl) {
+    new CommentStore(projectId, pageUrl).update(id, text);
+  }
+
+  async deleteAnnotation(id, projectId, pageUrl) {
+    new CommentStore(projectId, pageUrl).delete(id);
+  }
+
+  async clearAnnotations(projectId, pageUrl) {
+    new CommentStore(projectId, pageUrl).clear();
+  }
+
+  async exportPageJSON(projectId, pageUrl) {
+    return new CommentStore(projectId, pageUrl).exportJSON();
+  }
+
+  async importPageJSON(projectId, pageUrl, _pageTitle, jsonString) {
+    new CommentStore(projectId, pageUrl).importJSON(jsonString);
+  }
+}
