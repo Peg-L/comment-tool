@@ -574,7 +574,7 @@ export class PanelUI {
       exportBtn,
       copyDataBtn,
       importBtn,
-      shareBtn,
+      // shareBtn,
     );
     p.appendChild(tb);
 
