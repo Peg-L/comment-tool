@@ -102,6 +102,33 @@ import { PanelUI } from './panel.js';
     panel.setPageData(pages);
   }
 
+  let lastDeleted = null;
+
+  async function deleteAnnotation(id) {
+    const comments = await adapter.getAnnotations(project, url);
+    const comment = comments.find(c => c.id === id);
+    if (!comment) return;
+
+    lastDeleted = { ...comment };
+    await adapter.deleteAnnotation(id, project, url);
+    await refresh();
+
+    panel.showToast('標註已刪除', {
+      label: '復原',
+      onClick: async () => {
+        if (!lastDeleted) return;
+        await adapter.addAnnotation(project, url, doc.title, {
+          selector: lastDeleted.selector,
+          elementLabel: lastDeleted.elementLabel,
+          text: lastDeleted.text,
+          meta: lastDeleted.meta,
+        });
+        lastDeleted = null;
+        await refresh();
+      }
+    });
+  }
+
   // ── Edit helper (shared by badge click + sidebar edit button) ─────────────
   async function openEditDialog(id, anchorX, anchorY) {
     const comments = await adapter.getAnnotations(project, url);
@@ -122,12 +149,9 @@ import { PanelUI } from './panel.js';
       }
     }
 
-    const result = await panel.showDialogAt(x, y, { existing: comment.text, showDelete: !panel.isDeveloperMode });
+    const result = await panel.showDialogAt(x, y, { existing: comment.text });
     if (result.action === 'save' && result.text) {
       await adapter.updateAnnotation(id, result.text, project, url);
-      await refresh();
-    } else if (result.action === 'delete') {
-      await adapter.deleteAnnotation(id, project, url);
       await refresh();
     }
   }
@@ -183,8 +207,7 @@ import { PanelUI } from './panel.js';
     })
     .on('edit', (id) => openEditDialog(id))
     .on('delete', async (id) => {
-      await adapter.deleteAnnotation(id, project, url);
-      await refresh();
+      await deleteAnnotation(id);
     })
     .on('toggleDone', async ({ id, done }) => {
       await adapter.setAnnotationDone(id, done, project, url);

@@ -157,16 +157,18 @@ iconify-icon { font-size: inherit; flex-shrink: 0; }
 .list::-webkit-scrollbar-track { background: transparent; }
 .list::-webkit-scrollbar-thumb { background: #45475a; border-radius: 2px; }
 .comment-item {
+  position: relative;
   padding: 8px 12px;
   border-bottom: 1px solid #1e1e2e;
   cursor: pointer;
   transition: background 0.1s;
 }
 .comment-item:hover { background: #313244; }
+.comment-item:hover .btn-del { opacity: 1; }
 .comment-item.missing { opacity: 0.5; }
 .comment-item.done { opacity: 0.58; }
 .comment-item.done .comment-text { text-decoration: line-through; color: #8b8fa7; }
-.comment-header { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
+.comment-header { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; padding-right: 20px; }
 .comment-done-box {
   width: 14px;
   height: 14px;
@@ -222,17 +224,25 @@ iconify-icon { font-size: inherit; flex-shrink: 0; }
 }
 .comment-actions { padding-left: 24px; display: flex; gap: 4px; }
 .btn-del {
-  padding: 2px 8px;
-  font-size: 11px;
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 16px;
   border: none;
   border-radius: 4px;
   cursor: pointer;
-  background: rgba(243,139,168,0.15);
-  color: #f38ba8;
-  transition: background 0.1s;
-  flex-shrink: 0;
+  background: transparent;
+  color: #6c7086;
+  opacity: 0;
+  transition: all 0.1s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.btn-del:hover { background: #f38ba8; color: #1e1e2e; }
+.btn-del:hover { background: rgba(243,139,168,0.15); color: #f38ba8; }
 .btn-edit-item {
   padding: 2px 8px;
   font-size: 11px;
@@ -255,18 +265,35 @@ iconify-icon { font-size: inherit; flex-shrink: 0; }
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  background: #a6e3a1;
-  color: #1e1e2e;
-  padding: 8px 18px;
+  background: #313244;
+  color: #cdd6f4;
+  padding: 10px 16px;
   border-radius: 8px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 500;
   pointer-events: none;
   opacity: 0;
-  transition: opacity 0.25s;
-  z-index: 1;
+  transition: opacity 0.25s, transform 0.25s;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  border: 1px solid #45475a;
 }
-.toast.show { opacity: 1; }
+.toast.show { opacity: 1; pointer-events: all; }
+.toast-action {
+  background: #89b4fa;
+  color: #1e1e2e;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+.toast-action:hover { background: #b4befe; }
 /* Floating dialog — no backdrop, positioned near the element */
 .dialog {
   position: fixed;
@@ -730,10 +757,17 @@ export class PanelUI {
     this._lastRefresh = { comments, isMissing, onLocate };
     this._listEl.innerHTML = "";
 
-    const visibleComments =
+    let visibleComments =
       this._mode === "developer" && this._hideDone
         ? comments.filter((c) => !c.done)
-        : comments;
+        : [...comments];
+
+    // In developer mode, move "done" items to the bottom
+    if (this._mode === "developer" && !this._hideDone) {
+      const pending = visibleComments.filter(c => !c.done);
+      const done = visibleComments.filter(c => c.done);
+      visibleComments = [...pending, ...done];
+    }
 
     if (!visibleComments.length) {
       this._listEl.innerHTML = comments.length
@@ -796,21 +830,24 @@ export class PanelUI {
         );
       }
 
-      // Actions
+      // Actions (Edit only)
       const actions = this._el("div", "comment-actions");
       const editBtn = this._btn("mdi:pencil", "編輯", "btn-edit-item", (e) => {
         e.stopPropagation();
         this._emit("edit", c.id);
       });
       actions.appendChild(editBtn);
+      item.appendChild(actions);
+
+      // Top-right Delete button (Trash icon)
       if (this._mode === "reviewer") {
-        const delBtn = this._btn("mdi:delete", "刪除", "btn-del", (e) => {
+        const delBtn = this._btn("mdi:delete-outline", null, "btn-del", (e) => {
           e.stopPropagation();
           this._emit("delete", c.id);
         });
-        actions.appendChild(delBtn);
+        delBtn.title = "刪除標註";
+        item.appendChild(delBtn);
       }
-      item.appendChild(actions);
 
       // Click item → scroll to element + pulse glow
       item.addEventListener("click", () => {
@@ -980,16 +1017,30 @@ export class PanelUI {
     }
   }
 
-  showToast(msg) {
+  showToast(msg, action) {
     let t = this._shadow.querySelector(".toast");
     if (!t) {
       t = this._el("div", "toast");
       this._shadow.appendChild(t);
     }
-    t.textContent = msg;
+    t.innerHTML = "";
+    t.appendChild(this._doc.createTextNode(msg));
+
+    if (action && action.label && action.onClick) {
+      const btn = this._doc.createElement("button");
+      btn.className = "toast-action";
+      btn.textContent = action.label;
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        action.onClick();
+        t.classList.remove("show");
+      });
+      t.appendChild(btn);
+    }
+
     t.classList.add("show");
     clearTimeout(t._timer);
-    t._timer = setTimeout(() => t.classList.remove("show"), 2200);
+    t._timer = setTimeout(() => t.classList.remove("show"), action ? 5000 : 2200);
   }
 
   /**
@@ -998,12 +1049,12 @@ export class PanelUI {
    * @returns {Promise<{action:'save'|'delete'|'cancel', text?:string}>}
    */
   showDialogAt(anchorX, anchorY, opts = {}) {
-    const { existing = "", showDelete = false } = opts;
+    const { existing = "" } = opts;
     return new Promise((resolve) => {
       const vw = this._doc.defaultView.innerWidth;
       const vh = this._doc.defaultView.innerHeight;
       const W = 280,
-        H_EST = 190,
+        H_EST = 160,
         pad = 12;
 
       // Position near anchor, clamped to viewport
@@ -1030,13 +1081,7 @@ export class PanelUI {
         resolve(result);
       };
 
-      if (showDelete) {
-        const delBtn = this._btn("mdi:delete", "刪除", "btn-danger", () =>
-          done({ action: "delete" }),
-        );
-        const spacer = this._el("span", "spacer");
-        actions.append(delBtn, spacer);
-      }
+      const spacer = this._el("span", "spacer");
       const cancelBtn = this._btn("mdi:close", "取消", "btn-neutral", () =>
         done({ action: "cancel" }),
       );
@@ -1044,7 +1089,7 @@ export class PanelUI {
         const text = ta.value.trim();
         done({ action: text ? "save" : "cancel", text });
       });
-      actions.append(cancelBtn, saveBtn);
+      actions.append(spacer, cancelBtn, saveBtn);
 
       dialog.append(h3, ta, actions);
       this._shadow.appendChild(dialog);
