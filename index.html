@@ -119,14 +119,7 @@
         font-size: 11px; color: #6c6f8a; text-transform: uppercase;
         letter-spacing: 0.5px; margin-bottom: 8px;
       }
-      .bookmarklet-btn { position: relative; }
       .bookmarklet-btn.recommended { background: #6246ea; border-color: #a78bfa; }
-      .rec-badge {
-        position: absolute; top: -10px; right: -10px;
-        background: #a6e3a1; color: #1e1e2e; font-size: 10px;
-        font-weight: 700; padding: 2px 7px; border-radius: 20px;
-        pointer-events: none;
-      }
     </style>
   </head>
   <body>
@@ -134,10 +127,9 @@
       <h1>💬 審核小精靈</h1>
       <p class="sub">在任意網頁標註意見，用複製資料或分享連結交接給前端，也可一鍵複製給 AI</p>
       <div class="install-section">
-        <div class="install-label">✨ 推薦 — 一次安裝，自動更新</div>
-        <a class="bookmarklet-btn recommended" href="javascript:(function(){var h=location.hostname;var local=h==='localhost'||h==='127.0.0.1'||h==='::1';var s=document.createElement('script');s.src=(local?location.origin+'/dist/comment-tool.js':'https://peg-l.github.io/comment-tool/comment-tool.js')+'?t='+Date.now();document.head.appendChild(s)})();" title="拖曳此按鈕到書籤列">
-          <span class="rec-badge">推薦</span>
-          ↗ 審核小精靈 — 拖到書籤列
+        <div class="install-label">一次安裝，自動更新</div>
+        <a class="bookmarklet-btn recommended" href="javascript:(function(){var h=location.hostname;var local=h==='localhost'||h==='127.0.0.1'||h==='::1';var s=document.createElement('script');s.src=(local?location.origin+'/dist/comment-tool.js':'https://peg-l.github.io/comment-tool/comment-tool.js')+'?t='+Date.now();document.head.appendChild(s)})();" title="v1.0.0 審核小精靈">
+          v1.0.0 審核小精靈
         </a>
         <p class="tip">拖曳到書籤列，工具有更新時不需要重新安裝</p>
       </div>
