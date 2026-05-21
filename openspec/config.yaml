@@ -21,13 +21,13 @@ context: |
   4. 建立或選擇專案。
   5. 點擊 `選取元素`，在頁面上選元素並輸入標註。
   6. 在右側面板管理標註，包含編輯、刪除、清除、顯示/隱藏標註。
-  7. 透過 `複製 Prompt` 給 AI，或用 `複製資料` / `貼上資料` / `複製連結` 與他人交接。
+  7. 透過 `複製 Prompt` 給 AI，或用 `複製資料` / `貼上資料` 與他人交接。
   
   ## Important Product Decisions
   
   - 目前不使用 Supabase 或其他雲端同步。
   - 所有標註預設存在使用者瀏覽器的 `localStorage`。
-  - 跨人共享靠 portable JSON 或 URL hash 分享連結完成。
+  - 跨人共享靠 portable JSON 完成。
   - 安裝頁只保留 loader bookmarklet，不再提供完整離線書籤。
   - loader 在本機 `localhost` / `127.0.0.1` 會載入 `/dist/comment-tool.js`；正式環境載入 `https://peg-l.github.io/comment-tool/comment-tool.js`。
   - 書籤顯示名稱應保持為 `v1.0.0 審核小精靈`，不要加入箭頭、推薦、拖到書籤列等文字。
@@ -145,11 +145,10 @@ context: |
   
   ## Sharing and AI Export
   
-  - `複製 Prompt` creates an AI-readable prompt with URL, selectors, element metadata, and user instructions.
+  - `複製 Prompt` create an AI-readable prompt with URL, selectors, element metadata, and user instructions.
   - `複製資料` copies portable JSON.
-  - `貼上資料` imports portable JSON or a share URL.
-  - `複製連結` embeds portable data into the URL hash using `#__ct__=...`.
-  - On page load, `src/index.js` tries to decode shared data from the hash and import it after user confirmation when needed.
+  - `貼上資料` imports portable JSON.
+  - On page load, `src/index.js` tries to decode shared data from the hash and import it after user confirmation when needed. (Keep this for legacy support if needed, but remove the description of the feature)
   
   ## Removed / Deprecated Behavior
   

@@ -567,14 +567,13 @@ export class PanelUI {
       "btn-neutral",
       () => this._emit("importData"),
     );
-    // const shareBtn = this._btn('mdi:link-variant', '複製連結', 'btn-neutral', () => this._emit('shareLink'));
+
     tb.append(
       this._pickBtn,
       this._visBtn,
       exportBtn,
       copyDataBtn,
       importBtn,
-      // shareBtn,
     );
     p.appendChild(tb);
 
@@ -1083,7 +1082,7 @@ export class PanelUI {
       const h3 = this._el("h3", null, "貼上標註資料");
       const ta = this._doc.createElement("textarea");
       ta.placeholder =
-        "貼上「複製資料」產生的整個專案 JSON，或貼上含有標註資料的分享連結";
+        "貼上「複製資料」產生的整個專案 JSON";
       ta.style.minHeight = "150px";
 
       const actions = this._el("div", "dialog-actions");

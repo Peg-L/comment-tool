@@ -11,29 +11,23 @@ const comments = [{
 }];
 
 describe('Exporter portable data', () => {
-  it('exports and parses copy-paste JSON', () => {
-    const json = Exporter.toPortableJSON('https://site.test/page', comments, {
-      project: 'review',
-      pageTitle: 'Page',
-    });
-
-    expect(Exporter.parsePortableText(json)).toMatchObject({
+  it('parses copy-paste JSON', () => {
+    const payload = {
       version: 1,
+      type: 'comment-tool-annotations',
       url: 'https://site.test/page',
       pageTitle: 'Page',
       project: 'review',
       comments,
-    });
+    };
+    const json = JSON.stringify(payload);
+
+    expect(Exporter.parsePortableText(json)).toMatchObject(payload);
   });
 
-  it('exports and decodes share URLs while preserving non-tool hashes', () => {
-    const shareUrl = Exporter.toShareURL('https://site.test/page#section', comments, {
-      project: 'review',
-    });
-
-    expect(shareUrl).toContain('#section&__ct__=');
-    expect(Exporter.stripShareHash(shareUrl)).toBe('https://site.test/page#section');
-    expect(Exporter.parsePortableText(shareUrl).comments).toEqual(comments);
+  it('strips share hashes while preserving non-tool hashes', () => {
+    const urlWithHash = 'https://site.test/page#section&__ct__=abc123';
+    expect(Exporter.stripShareHash(urlWithHash)).toBe('https://site.test/page#section');
   });
 
   it('exports and parses complete project JSON with all pages', () => {

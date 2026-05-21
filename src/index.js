@@ -230,15 +230,6 @@ import { PanelUI } from './panel.js';
       const ok = await Exporter.copyToClipboard(json);
       panel.showToast(ok ? `✓ 已複製 ${projectPages.length} 個頁面的專案資料` : '✗ 複製失敗，請手動複製');
     })
-    .on('shareLink', async () => {
-      const comments = await adapter.getAnnotations(project, url);
-      const shareUrl = Exporter.toShareURL(url, comments, {
-        project,
-        pageTitle: doc.title || url,
-      });
-      const ok = await Exporter.copyToClipboard(shareUrl);
-      panel.showToast(ok ? '✓ 分享連結已複製' : '✗ 複製失敗，請手動複製');
-    })
     .on('importData', async () => {
       const result = await panel.showImportDialog();
       if (result.action !== 'import') return;

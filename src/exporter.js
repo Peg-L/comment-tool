@@ -37,21 +37,6 @@ export class Exporter {
     return lines.join('\n');
   }
 
-  static toPortableData(pageUrl, comments, { project = '', pageTitle = '' } = {}) {
-    return {
-      version: 1,
-      type: 'comment-tool-annotations',
-      url: pageUrl,
-      pageTitle,
-      project,
-      comments,
-    };
-  }
-
-  static toPortableJSON(pageUrl, comments, opts = {}) {
-    return JSON.stringify(this.toPortableData(pageUrl, comments, opts), null, 2);
-  }
-
   static toProjectData(project, pages) {
     return {
       version: 1,
@@ -76,22 +61,6 @@ export class Exporter {
 
   static _decodePayload(value) {
     return JSON.parse(decodeURIComponent(escape(atob(value))));
-  }
-
-  /**
-   * Encode comments into a shareable URL using the URL hash (#__ct__=…).
-   * @param {string} pageUrl - Current page URL (without __ct__ fragment)
-   * @param {Array}  comments
-   * @returns {string} Share URL
-   */
-  static toShareURL(pageUrl, comments, opts = {}) {
-    const payload = this.toPortableData(pageUrl, comments, opts);
-    const b64 = this._encodePayload(payload);
-    const hashIndex = pageUrl.indexOf('#');
-    const base     = hashIndex === -1 ? pageUrl : pageUrl.slice(0, hashIndex);
-    const existing = hashIndex === -1 ? '' : pageUrl.slice(hashIndex + 1).replace(new RegExp(`&?${this.SHARE_PARAM}=[^&]*`, 'g'), '');
-    const newHash  = existing ? `${existing}&${this.SHARE_PARAM}=${b64}` : `${this.SHARE_PARAM}=${b64}`;
-    return `${base}#${newHash}`;
   }
 
   static stripShareHash(pageUrl) {
