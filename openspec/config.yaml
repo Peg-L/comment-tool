@@ -1,5 +1,197 @@
 schema: spec-driven
 
+context: |
+  # 審核小精靈 Project Brief for Spectra
+  
+  Last updated: 2026-05-21
+  
+  ## One-Line Summary
+  
+  審核小精靈是一個 bookmarklet 型網頁標註工具。使用者把安裝頁上的書籤拖到瀏覽器書籤列後，可在任意網頁選取元素、寫下審核意見、管理多個專案，並把標註內容複製給 AI 或透過資料/連結交接給同事。
+  
+  ## Product Goal
+  
+  這個工具服務設計審核、前端修改回饋、AI 輔助改版等流程。核心目標是讓非工程使用者可以直接在真實網頁上指出問題，讓工程師或 AI 可以取得足夠精準的 DOM selector、元素文字、屬性與修改指令。
+  
+  ## Current User Workflow
+  
+  1. 開啟 `index.html` 安裝頁。
+  2. 將 `v1.0.0 審核小精靈` 書籤拖到瀏覽器書籤列。
+  3. 到要審核的頁面，點擊書籤啟動右側工具面板。
+  4. 建立或選擇專案。
+  5. 點擊 `選取元素`，在頁面上選元素並輸入標註。
+  6. 在右側面板管理標註，包含編輯、刪除、清除、顯示/隱藏標註。
+  7. 透過 `複製 Prompt` 給 AI，或用 `複製資料` / `貼上資料` / `複製連結` 與他人交接。
+  
+  ## Important Product Decisions
+  
+  - 目前不使用 Supabase 或其他雲端同步。
+  - 所有標註預設存在使用者瀏覽器的 `localStorage`。
+  - 跨人共享靠 portable JSON 或 URL hash 分享連結完成。
+  - 安裝頁只保留 loader bookmarklet，不再提供完整離線書籤。
+  - loader 在本機 `localhost` / `127.0.0.1` 會載入 `/dist/comment-tool.js`；正式環境載入 `https://peg-l.github.io/comment-tool/comment-tool.js`。
+  - 書籤顯示名稱應保持為 `v1.0.0 審核小精靈`，不要加入箭頭、推薦、拖到書籤列等文字。
+  
+  ## Tech Stack
+  
+  - Language: Vanilla JavaScript ES modules
+  - Build: esbuild
+  - Test runner: Vitest
+  - Test environment: jsdom
+  - Runtime target: Chrome 90, Firefox 88, Safari 14
+  - Persistence: browser `localStorage`
+  - Distribution: generated IIFE bundle at `dist/comment-tool.js`
+  
+  ## Key Commands
+  
+  ```bash
+  npm run generate
+  npm test
+  npm run dev
+  ```
+  
+  `npm run generate` only runs `node build.js`. It must not call the removed offline bookmarklet generator.
+  
+  ## Main Files
+  
+  - `index.html`: 安裝頁。包含 loader bookmarklet、產品說明、使用方式。
+  - `build.js`: esbuild build script. Bundles `src/index.js` into `dist/comment-tool.js`.
+  - `src/index.js`: bookmarklet runtime entry. Wires picker, overlay, panel, storage, import/export, project navigation.
+  - `src/panel.js`: Shadow DOM UI for the right-side control panel, project flyout, dialogs, and buttons.
+  - `src/store.js`: localStorage persistence, project list, page list, project rename/delete, annotation CRUD.
+  - `src/store-factory.js`: storage factory. Currently always returns `LocalAdapter` and ignores legacy remote config.
+  - `src/picker.js`: element picking behavior and selector capture.
+  - `src/overlay.js`: visible outlines and numbered badges for annotations.
+  - `src/exporter.js`: AI prompt generation, portable JSON, share URL encode/decode, clipboard helper.
+  - `tests/*.test.js`: unit tests for storage, import/export, and storage factory behavior.
+  
+  ## Runtime Architecture
+  
+  `src/index.js` is the composition root:
+  
+  1. Prevents duplicate activation by checking `window.__commentToolActive`.
+  2. Parses shared annotation payloads from URL hash.
+  3. Creates the storage adapter via `getStore()`.
+  4. Mounts `PanelUI`, `ElementPicker`, and `OverlayManager`.
+  5. Resolves the current project from localStorage.
+  6. Refreshes comments for the current project and page URL.
+  7. Registers panel events for project management, annotation CRUD, import/export, sharing, and navigation.
+  
+  Data flow for a new annotation:
+  
+  1. User clicks `選取元素`.
+  2. `ElementPicker` records selector, label, element metadata, and rect.
+  3. `PanelUI.showDialogAt()` collects comment text.
+  4. `LocalAdapter.addAnnotation()` writes to localStorage through `CommentStore`.
+  5. `refresh()` reloads annotations and rerenders overlay badges plus panel list.
+  
+  ## Storage Model
+  
+  Storage keys:
+  
+  - Current project: `comment-tool:__current-project__`
+  - Explicit project list: `comment-tool:__project-list__`
+  - Page annotations: `comment-tool:{projectName}:{pageUrl}`
+  
+  Annotation shape:
+  
+  ```json
+  {
+    "id": "generated-id",
+    "selector": "body > main > section:nth-child(2)",
+    "elementLabel": "section > button",
+    "text": "審核意見內容",
+    "meta": {
+      "tagName": "BUTTON",
+      "innerText": "送出",
+      "attrs": {
+        "id": "submit",
+        "aria-label": "送出表單"
+      }
+    },
+    "createdAt": "2026-05-21T00:00:00.000Z"
+  }
+  ```
+  
+  Portable data shape:
+  
+  ```json
+  {
+    "version": 1,
+    "type": "comment-tool-annotations",
+    "url": "https://example.com/page",
+    "pageTitle": "Page title",
+    "project": "project-name",
+    "comments": []
+  }
+  ```
+  
+  ## Project Flyout Behavior
+  
+  The project dropdown should always show every project found in storage, regardless of the current page.
+  
+  Supported actions:
+  
+  - Search projects by project name, page path, or page URL.
+  - Create a project.
+  - Select a project.
+  - Rename a project.
+  - Delete an entire project and all its annotations.
+  - Expand a project to inspect pages with annotation counts.
+  - Click a page to navigate to that page and activate the project.
+  - Delete annotations for a specific project page.
+  
+  If a clicked page URL equals the current page URL but belongs to a different project, the tool switches project and refreshes in place instead of forcing navigation.
+  
+  ## Sharing and AI Export
+  
+  - `複製 Prompt` creates an AI-readable prompt with URL, selectors, element metadata, and user instructions.
+  - `複製資料` copies portable JSON.
+  - `貼上資料` imports portable JSON or a share URL.
+  - `複製連結` embeds portable data into the URL hash using `#__ct__=...`.
+  - On page load, `src/index.js` tries to decode shared data from the hash and import it after user confirmation when needed.
+  
+  ## Removed / Deprecated Behavior
+  
+  - Supabase cloud sync UI and config are deprecated.
+  - `src/store-cloud.js` has been removed.
+  - `generate-bookmarklet.js` has been removed.
+  - Offline full bookmarklet generation is removed.
+  - Install page copy should not mention Supabase, offline backup, or JSON as the primary workflow.
+  
+  ## Testing Notes
+  
+  Run tests after behavior changes:
+  
+  ```bash
+  npm test
+  ```
+  
+  Current test coverage focuses on:
+  
+  - project creation/listing/deletion
+  - project rename
+  - project page deletion
+  - page listing with annotation counts
+  - portable JSON/share URL import-export behavior
+  - local-only storage factory behavior
+  
+  After changing runtime code, also run:
+  
+  ```bash
+  npm run generate
+  ```
+  
+  This rebuilds `dist/comment-tool.js`, which is what the bookmarklet loads.
+  
+  ## Constraints for Future Changes
+  
+  - Keep the tool dependency-light; avoid adding frameworks unless absolutely necessary.
+  - Keep bookmarklet payload simple and compatible with supported browser targets.
+  - UI runs inside Shadow DOM; styles in `src/panel.js` should not leak into host pages.
+  - Do not reintroduce cloud settings unless the product decision changes explicitly.
+  - Treat `dist/comment-tool.js` as generated output from `src`.
+  - Be careful with localStorage key migrations; existing user annotations may already be stored under current key formats.
 # Project context (optional)
 # This is shown to AI when creating artifacts.
 # Add your tech stack, conventions, style guides, domain knowledge, etc.

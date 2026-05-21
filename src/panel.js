@@ -319,39 +319,6 @@ iconify-icon { font-size: inherit; flex-shrink: 0; }
   transition: background 0.1s;
 }
 .proj-acc-hdr:hover { background: #313244; }
-.proj-acc-row.current > .proj-acc-hdr { background: #2a2a3e; }
-.proj-acc-name {
-  flex: 1;
-  font-size: 12px;
-  color: #cdd6f4;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.proj-acc-row.current > .proj-acc-hdr .proj-acc-name { color: #cba6f7; }
-.proj-acc-badge {
-  font-size: 10px;
-  background: #cba6f7;
-  color: #1e1e2e;
-  border-radius: 3px;
-  padding: 1px 5px;
-  font-weight: 600;
-  flex-shrink: 0;
-}
-.proj-acc-del {
-  padding: 1px 6px;
-  font-size: 11px;
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
-  background: rgba(243,139,168,0.15);
-  color: #f38ba8;
-  flex-shrink: 0;
-  transition: background 0.1s;
-}
-.proj-acc-del:hover { background: #f38ba8; color: #1e1e2e; }
-.proj-acc-use,
-.proj-acc-edit,
 .proj-page-del {
   padding: 1px 6px;
   font-size: 11px;
@@ -363,12 +330,6 @@ iconify-icon { font-size: inherit; flex-shrink: 0; }
   flex-shrink: 0;
   transition: background 0.1s;
 }
-.proj-acc-use:hover { background: #89b4fa; color: #1e1e2e; }
-.proj-acc-edit {
-  background: rgba(166,227,161,0.15);
-  color: #a6e3a1;
-}
-.proj-acc-edit:hover { background: #a6e3a1; color: #1e1e2e; }
 .proj-acc-pages {
   padding: 2px 8px 4px 16px;
   margin: 0 8px 4px;
@@ -404,27 +365,6 @@ iconify-icon { font-size: inherit; flex-shrink: 0; }
 }
 .proj-page-del:hover { background: rgba(243,139,168,0.15); color: #f38ba8; }
 .proj-acc-empty { font-size: 11px; color: #6c7086; font-style: italic; padding: 2px 0; }
-.proj-add-row {
-  display: flex;
-  gap: 6px;
-  padding: 8px 10px;
-  border-top: 1px solid #313244;
-  background: #181825;
-  flex-shrink: 0;
-}
-.proj-add-input {
-  flex: 1;
-  min-width: 0;
-  background: #313244;
-  border: 1px solid #45475a;
-  border-radius: 5px;
-  color: #cdd6f4;
-  font-size: 12px;
-  padding: 4px 8px;
-  outline: none;
-  font-family: inherit;
-}
-.proj-add-input:focus { border-color: #89b4fa; }
 /* ── Pick group with switch toggle ── */
 .pick-group {
   display: inline-flex;
@@ -475,13 +415,12 @@ export class PanelUI {
     this._cbs = {};
     this._project = '';
     this._flyoutOpen = false;
-    this._flyoutExpandedProject = null;
     this._flyoutEl = null;
     this._projFlyoutBtn = null;
     this._flyoutOutsideHandler = null;
     this._noProject = false;
     this._clearBtn = null;
-    this._projectSearch = '';
+    this._pageSearch = '';
   }
 
   on(event, cb) { this._cbs[event] = cb; return this; }
@@ -550,15 +489,15 @@ export class PanelUI {
     tb.append(this._pickBtn, this._visBtn, exportBtn, copyDataBtn, importBtn, shareBtn);
     p.appendChild(tb);
 
-    // Project bar with flyout toggle
+    // Page list with flyout toggle
     const projBar = this._el('div', 'proj-bar');
     this._projFlyoutBtn = this._doc.createElement('button');
     this._projFlyoutBtn.className = 'proj-flyout-btn';
-    this._projFlyoutBtn.appendChild(this._icon('mdi:folder'));
+    this._projFlyoutBtn.appendChild(this._icon('mdi:file-document-multiple-outline'));
     const projNameSpan = this._doc.createElement('span');
     projNameSpan.className = 'proj-name';
     projNameSpan.style.cssText = 'flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
-    projNameSpan.textContent = '…';
+    projNameSpan.textContent = '頁面清單';
     this._projFlyoutBtn.appendChild(projNameSpan);
     this._projFlyoutBtn.appendChild(this._icon('mdi:chevron-down'));
     this._projFlyoutBtn.addEventListener('click', () => this._toggleFlyout());
@@ -690,14 +629,13 @@ export class PanelUI {
     this._project = name;
     if (this._projFlyoutBtn) {
       const nameSpan = this._projFlyoutBtn.querySelector('.proj-name');
-      if (nameSpan) nameSpan.textContent = name || '請選擇或建立專案';
+      if (nameSpan) nameSpan.textContent = '頁面清單';
     }
   }
 
   _openFlyout() {
     if (this._flyoutOpen) return;
     this._flyoutOpen = true;
-    this._flyoutExpandedProject = this._project;
     this._flyoutEl.classList.add('open');
     this._emit('flyoutOpen');
     this._flyoutOutsideHandler = (e) => {
@@ -722,11 +660,10 @@ export class PanelUI {
   }
 
   /**
-   * Render the flyout contents.
-   * @param {string[]} projects       Sorted project names
-   * @param {Object}   pagesMap       { [projectName]: Array<{url,path,count}> }
+   * Render the page flyout contents for the single project.
+   * @param {Array<{url:string,path:string,count:number}>} pages
    */
-  setFlyoutData(projects, pagesMap) {
+  setPageData(pages) {
     if (!this._flyoutEl) return;
     this._flyoutEl.innerHTML = '';
 
@@ -734,11 +671,11 @@ export class PanelUI {
     const searchInput = this._doc.createElement('input');
     searchInput.type = 'search';
     searchInput.className = 'proj-search-input';
-    searchInput.placeholder = '搜尋專案或頁面…';
-    searchInput.value = this._projectSearch;
+    searchInput.placeholder = '搜尋頁面…';
+    searchInput.value = this._pageSearch;
     searchInput.addEventListener('input', e => {
-      this._projectSearch = e.target.value;
-      this.setFlyoutData(projects, pagesMap);
+      this._pageSearch = e.target.value;
+      this.setPageData(pages);
       const next = this._flyoutEl.querySelector('.proj-search-input');
       if (next) {
         next.focus();
@@ -747,125 +684,48 @@ export class PanelUI {
     });
     searchInput.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
-        this._projectSearch = '';
-        this.setFlyoutData(projects, pagesMap);
+        this._pageSearch = '';
+        this.setPageData(pages);
       }
       e.stopPropagation();
     });
     searchRow.appendChild(searchInput);
     this._flyoutEl.appendChild(searchRow);
 
-    // ── Accordion list ─────────────────────────────────────────────────────
     const list = this._el('div', 'proj-acc-list');
-    const query = this._projectSearch.trim().toLowerCase();
-    const visibleProjects = projects.filter(p => {
+    const query = this._pageSearch.trim().toLowerCase();
+    const visiblePages = pages.filter(({ path, url }) => {
       if (!query) return true;
-      const pages = pagesMap[p] || [];
-      return p.toLowerCase().includes(query) ||
-        pages.some(({ path, url }) =>
-          String(path).toLowerCase().includes(query) ||
-          String(url).toLowerCase().includes(query)
-        );
+      return String(path).toLowerCase().includes(query) ||
+        String(url).toLowerCase().includes(query);
     });
 
-    if (!visibleProjects.length) {
-      list.appendChild(this._el('span', 'proj-acc-empty', '找不到符合的專案'));
+    if (!visiblePages.length) {
+      list.appendChild(this._el('span', 'proj-acc-empty', query ? '找不到符合的頁面' : '此專案尚無標註頁面'));
     }
 
-    visibleProjects.forEach(p => {
-      const isCurrent  = p === this._project;
-      const isExpanded = p === this._flyoutExpandedProject || !!query;
-      const pages      = pagesMap[p] || [];
-
-      const row = this._el('div', 'proj-acc-row' + (isCurrent ? ' current' : ''));
-
-      // Header row
-      const hdr  = this._el('div', 'proj-acc-hdr');
-      const name = this._el('span', 'proj-acc-name', p);
-      hdr.appendChild(name);
-
-      if (isCurrent) {
-        hdr.appendChild(this._el('span', 'proj-acc-badge', '目前'));
-      }
-      const arrow  = this._icon(isExpanded ? 'mdi:chevron-down' : 'mdi:chevron-right');
-      arrow.style.cssText = 'flex-shrink:0; font-size:14px;';
-      const useBtn = this._btn('mdi:check', '使用', 'proj-acc-use', e => {
+    const pagesDiv = this._el('div', 'proj-acc-pages');
+    visiblePages.forEach(({ url, path, count }) => {
+      const pageRow = this._el('div', 'proj-acc-page-row');
+      const link  = this._el('span', 'proj-acc-page', `↗ ${path} `);
+      const cnt   = this._el('span', 'proj-acc-page-count', `${count} 筆`);
+      link.appendChild(cnt);
+      link.addEventListener('click', e => {
         e.stopPropagation();
         this._closeFlyout();
-        this._emit('selectProject', { name: p });
+        this._emit('navigateToPage', { url });
       });
-      const editBtn = this._btn('mdi:pencil', '改名', 'proj-acc-edit', e => {
+      const pageDel = this._btn('mdi:close', '刪除頁面', 'proj-page-del', e => {
         e.stopPropagation();
-        const nextName = this._doc.defaultView.prompt(`重新命名專案「${p}」`, p);
-        if (!nextName || nextName.trim() === p) return;
-        this._emit('renameProject', { oldName: p, newName: nextName.trim() });
+        if (!this._doc.defaultView.confirm(`刪除 ${path} 的所有標註？`)) return;
+        this._emit('deleteProjectPage', { url });
       });
-      const delBtn = this._btn('mdi:delete', '刪除', 'proj-acc-del', e => {
-        e.stopPropagation();
-        if (!this._doc.defaultView.confirm(`確定刪除專案「${p}」及其所有標註？`)) return;
-        this._emit('deleteProject', { name: p });
-      });
-      hdr.append(useBtn, editBtn, arrow, delBtn);
-      hdr.addEventListener('click', () => {
-        this._flyoutExpandedProject = isExpanded && !query ? null : p;
-        this._emit('flyoutOpen'); // ask index.js to re-render with new expanded state
-      });
-
-      row.appendChild(hdr);
-
-      // Pages (shown when expanded or current)
-      if (isCurrent || isExpanded) {
-        const pagesDiv = this._el('div', 'proj-acc-pages');
-        if (!pages.length) {
-          pagesDiv.appendChild(this._el('span', 'proj-acc-empty', '此專案尚無標註頁面'));
-        } else {
-          pages.forEach(({ url, path, count }) => {
-            const pageRow = this._el('div', 'proj-acc-page-row');
-            const link  = this._el('span', 'proj-acc-page', `↗ ${path} `);
-            const cnt   = this._el('span', 'proj-acc-page-count', `${count} 筆`);
-            link.appendChild(cnt);
-            link.addEventListener('click', e => {
-              e.stopPropagation();
-              this._closeFlyout();
-              this._emit('navigateToPage', { url, project: p });
-            });
-            const pageDel = this._btn('mdi:close', '刪除頁面', 'proj-page-del', e => {
-              e.stopPropagation();
-              if (!this._doc.defaultView.confirm(`刪除「${p}」在 ${path} 的所有標註？`)) return;
-              this._emit('deleteProjectPage', { project: p, url });
-            });
-            pageRow.append(link, pageDel);
-            pagesDiv.appendChild(pageRow);
-          });
-        }
-        row.appendChild(pagesDiv);
-      }
-
-      list.appendChild(row);
+      pageRow.append(link, pageDel);
+      pagesDiv.appendChild(pageRow);
     });
+    list.appendChild(pagesDiv);
 
     this._flyoutEl.appendChild(list);
-
-    // ── Add new project row ────────────────────────────────────────────────
-    const addRow   = this._el('div', 'proj-add-row');
-    const input    = this._doc.createElement('input');
-    input.type        = 'text';
-    input.className   = 'proj-add-input';
-    input.placeholder = '新專案名稱…';
-    const createBtn   = this._btn('mdi:plus', '建立', 'btn-primary', () => {
-      const n = input.value.trim();
-      if (!n) { input.focus(); return; }
-      input.value = '';
-      this._closeFlyout();
-      this._emit('createProject', { name: n });
-    });
-    input.addEventListener('keydown', e => {
-      if (e.key === 'Enter')  createBtn.click();
-      if (e.key === 'Escape') this._closeFlyout();
-      e.stopPropagation();
-    });
-    addRow.append(input, createBtn);
-    this._flyoutEl.appendChild(addRow);
   }
 
   setPickActive(active) {
@@ -907,7 +767,7 @@ export class PanelUI {
       this._pickBtn.style.cursor  = this._noProject ? 'not-allowed' : '';
     }
     if (this._listEl && this._noProject) {
-      this._listEl.innerHTML = '<div class="empty">請先建立或選擇一個專案，才能開始標註。</div>';
+      this._listEl.innerHTML = '<div class="empty">頁面清單初始化中，請稍後再開始標註。</div>';
     }
   }
 

@@ -2,6 +2,7 @@
 const STORAGE_PREFIX = 'comment-tool:';
 const CURRENT_PROJECT_KEY = 'comment-tool:__current-project__';
 const PROJECT_LIST_KEY = 'comment-tool:__project-list__';
+export const SINGLE_PROJECT_NAME = '審核小精靈';
 
 function _getProjectList() {
   try {

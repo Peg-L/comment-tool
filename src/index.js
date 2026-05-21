@@ -1,5 +1,5 @@
 // src/index.js
-import { getCurrentProject, setCurrentProject } from './store.js';
+import { getCurrentProject, SINGLE_PROJECT_NAME, setCurrentProject } from './store.js';
 import { getStore } from './store-factory.js';
 import { ElementPicker } from './picker.js';
 import { OverlayManager } from './overlay.js';
@@ -18,7 +18,7 @@ import { PanelUI } from './panel.js';
   const url = Exporter.stripShareHash(location.href);
 
   // ── Adapter ───────────────────────────────────────────────────────────────
-  let adapter = getStore();
+  const adapter = getStore();
 
   // ── Module init (panel first — needed for project dialog) ─────────────────
   const picker  = new ElementPicker(doc);
@@ -26,18 +26,14 @@ import { PanelUI } from './panel.js';
   const panel   = new PanelUI(doc);
   panel.mount();
 
-  // ── Project resolution ───────────────────────────────────────────────────
-  let project = getCurrentProject() || '';
+  // ── Single project resolution ────────────────────────────────────────────
+  const storedProject = getCurrentProject();
+  const existingProjects = await adapter.listProjects();
+  const project = storedProject || existingProjects[0]?.name || SINGLE_PROJECT_NAME;
+  await adapter.createProject(project);
+  setCurrentProject(project);
 
   panel.setProject(project);
-  if (!project) panel.setNoProject(true);
-
-  function setActiveProject(name) {
-    project = name || '';
-    setCurrentProject(project);
-    panel.setProject(project);
-    panel.setNoProject(!project);
-  }
 
   async function refresh() {
     if (!project) return;
@@ -57,14 +53,12 @@ import { PanelUI } from './panel.js';
       return;
     }
 
-    const targetProject = project || payload.project || '共享標註';
-    const existing = project ? await adapter.getAnnotations(project, url) : [];
+    const targetProject = project;
+    const existing = await adapter.getAnnotations(project, url);
     if (existing.length && !doc.defaultView.confirm(`匯入會覆蓋目前頁面的 ${existing.length} 筆標註，確定繼續？`)) {
       return;
     }
 
-    await adapter.createProject(targetProject);
-    setActiveProject(targetProject);
     await adapter.importPageJSON(
       targetProject,
       url,
@@ -79,20 +73,9 @@ import { PanelUI } from './panel.js';
     panel.showToast(`✓ 已匯入 ${payload.comments.length} 筆標註`);
   }
 
-  async function activateProject(name) {
-    if (!name) return;
-    overlay.clearAll();
-    setActiveProject(name);
-    await refresh();
-  }
-
-  async function refreshFlyout() {
-    const projects = await adapter.listProjects();
-    const pagesMap = {};
-    for (const p of projects) {
-      pagesMap[p.name] = await adapter.listProjectPages(p.id);
-    }
-    panel.setFlyoutData(projects.map(p => p.name), pagesMap);
+  async function refreshPages() {
+    const pages = await adapter.listProjectPages(project);
+    panel.setPageData(pages);
   }
 
   // ── Edit helper (shared by badge click + sidebar edit button) ─────────────
@@ -127,72 +110,26 @@ import { PanelUI } from './panel.js';
 
   // ── Panel wiring ──────────────────────────────────────────────────────────
   panel
-    .on('flyoutOpen', () => refreshFlyout())
-    .on('navigateToPage', async ({ url: destUrl, project: destProject }) => {
-      if (!destUrl || !destProject) return;
-      if (destProject === project && destUrl === url) return;
-      if (destUrl === url) {
-        await activateProject(destProject);
-        await refreshFlyout();
-        return;
-      }
-      setCurrentProject(destProject);
+    .on('flyoutOpen', () => refreshPages())
+    .on('navigateToPage', async ({ url: destUrl }) => {
+      if (!destUrl || destUrl === url) return;
+      setCurrentProject(project);
       try {
         window.location.href = destUrl;
       } catch {
         setCurrentProject(project);
       }
     })
-    .on('selectProject', async ({ name }) => {
-      await activateProject(name);
-      await refreshFlyout();
-    })
-    .on('createProject', async ({ name }) => {
-      if (!name) return;
-      await adapter.createProject(name);
-      await activateProject(name);
-    })
-    .on('deleteProject', async ({ name }) => {
-      await adapter.deleteProject(name);
+    .on('deleteProjectPage', async ({ url: targetUrl }) => {
+      if (!targetUrl) return;
+      await adapter.deleteProjectPage(project, targetUrl);
 
-      if (name === project) {
-        const remaining = await adapter.listProjects();
-        overlay.clearAll();
-        if (remaining.length) {
-          await activateProject(remaining[0].name);
-        } else {
-          setActiveProject('');
-          panel.refresh([], () => false);
-        }
-      }
-
-      await refreshFlyout();
-    })
-    .on('renameProject', async ({ oldName, newName }) => {
-      if (!oldName || !newName || oldName === newName) return;
-      try {
-        await adapter.renameProject(oldName, newName);
-      } catch (e) {
-        panel.showToast(e.message === 'PROJECT_EXISTS' ? '已有相同名稱的專案' : `改名失敗：${e.message || e}`);
-        return;
-      }
-
-      if (oldName === project) {
-        setActiveProject(newName);
-        await refresh();
-      }
-      await refreshFlyout();
-    })
-    .on('deleteProjectPage', async ({ project: targetProject, url: targetUrl }) => {
-      if (!targetProject || !targetUrl) return;
-      await adapter.deleteProjectPage(targetProject, targetUrl);
-
-      if (targetProject === project && targetUrl === url) {
+      if (targetUrl === url) {
         overlay.clearAll();
         panel.refresh([], () => false);
       }
 
-      await refreshFlyout();
+      await refreshPages();
     })
     .on('pickRequest', () => {
       if (picker.isActive) {
