@@ -1,6 +1,6 @@
 // src/index.js
-import { getCurrentProject, setCurrentProject, createProject, deleteProject } from './store.js';
-import { getStore, saveConfig, loadConfig } from './store-factory.js';
+import { getCurrentProject, setCurrentProject } from './store.js';
+import { getStore } from './store-factory.js';
 import { ElementPicker } from './picker.js';
 import { OverlayManager } from './overlay.js';
 import { Exporter } from './exporter.js';
@@ -14,7 +14,8 @@ import { PanelUI } from './panel.js';
   }
 
   const doc = document;
-  const url = location.href;
+  const sharedData = Exporter.decodeShareHash(location.hash);
+  const url = Exporter.stripShareHash(location.href);
 
   // ── Adapter ───────────────────────────────────────────────────────────────
   let adapter = getStore();
@@ -30,13 +31,59 @@ import { PanelUI } from './panel.js';
 
   panel.setProject(project);
   if (!project) panel.setNoProject(true);
-  panel.setCloudConfigured(!!(loadConfig().supabaseUrl));
+
+  function setActiveProject(name) {
+    project = name || '';
+    setCurrentProject(project);
+    panel.setProject(project);
+    panel.setNoProject(!project);
+  }
 
   async function refresh() {
     if (!project) return;
-    const comments = await adapter.getAnnotations(project, url);
-    overlay.renderAll(comments);
-    panel.refresh(comments, (id) => overlay.isMissing(id), (id) => overlay.pulse(id));
+    try {
+      const comments = await adapter.getAnnotations(project, url);
+      overlay.renderAll(comments);
+      panel.refresh(comments, (id) => overlay.isMissing(id), (id) => overlay.pulse(id));
+    } catch (e) {
+      panel.showToast(`讀取失敗：${e.message}`);
+      throw e;
+    }
+  }
+
+  async function importPayload(payload, { fromLink = false } = {}) {
+    if (!payload?.comments?.length) {
+      panel.showToast('沒有可匯入的標註資料');
+      return;
+    }
+
+    const targetProject = project || payload.project || '共享標註';
+    const existing = project ? await adapter.getAnnotations(project, url) : [];
+    if (existing.length && !doc.defaultView.confirm(`匯入會覆蓋目前頁面的 ${existing.length} 筆標註，確定繼續？`)) {
+      return;
+    }
+
+    await adapter.createProject(targetProject);
+    setActiveProject(targetProject);
+    await adapter.importPageJSON(
+      targetProject,
+      url,
+      doc.title || payload.pageTitle || url,
+      JSON.stringify({ version: 1, url, comments: payload.comments })
+    );
+    await refresh();
+
+    if (fromLink && location.href !== url) {
+      history.replaceState(null, '', url);
+    }
+    panel.showToast(`✓ 已匯入 ${payload.comments.length} 筆標註`);
+  }
+
+  async function activateProject(name) {
+    if (!name) return;
+    overlay.clearAll();
+    setActiveProject(name);
+    await refresh();
   }
 
   async function refreshFlyout() {
@@ -80,9 +127,7 @@ import { PanelUI } from './panel.js';
 
   // ── Panel wiring ──────────────────────────────────────────────────────────
   panel
-    .on('flyoutOpen', () => {
-      refreshFlyout();
-    })
+    .on('flyoutOpen', () => refreshFlyout())
     .on('navigateToPage', ({ url: destUrl, project: destProject }) => {
       if (!destUrl || !destProject) return;
       if (destProject === project && destUrl === url) return;
@@ -93,15 +138,14 @@ import { PanelUI } from './panel.js';
         setCurrentProject(project);
       }
     })
+    .on('selectProject', async ({ name }) => {
+      await activateProject(name);
+      await refreshFlyout();
+    })
     .on('createProject', async ({ name }) => {
       if (!name) return;
       await adapter.createProject(name);
-      overlay.clearAll();
-      project = name;
-      setCurrentProject(project);
-      panel.setProject(project);
-      panel.setNoProject(false);
-      await refresh();
+      await activateProject(name);
     })
     .on('deleteProject', async ({ name }) => {
       await adapter.deleteProject(name);
@@ -110,16 +154,10 @@ import { PanelUI } from './panel.js';
         const remaining = await adapter.listProjects();
         overlay.clearAll();
         if (remaining.length) {
-          project = remaining[0].name;
-          setCurrentProject(project);
-          panel.setProject(project);
-          panel.setNoProject(false);
-          await refresh();
+          await activateProject(remaining[0].name);
         } else {
-          project = '';
-          setCurrentProject('');
-          panel.setProject('');
-          panel.setNoProject(true);
+          setActiveProject('');
+          panel.refresh([], () => false);
         }
       }
 
@@ -134,25 +172,30 @@ import { PanelUI } from './panel.js';
       panel.setPickActive(true);
       picker.start({
         onPick: async ({ selector, label, meta, rect }) => {
-          const x = rect ? rect.right : doc.defaultView.innerWidth / 2;
-          const y = rect ? rect.top  : doc.defaultView.innerHeight / 2;
-          const comments = await adapter.getAnnotations(project, url);
-          const existing = comments.find(c => c.selector === selector);
-          if (existing) {
-            await openEditDialog(existing.id, x, y);
-          } else {
-            const result = await panel.showDialogAt(x, y, { existing: '', showDelete: false });
-            if (result.action === 'save' && result.text) {
-              await adapter.addAnnotation(project, url, document.title, {
-                selector,
-                elementLabel: label,
-                text: result.text,
-                meta,
-              });
-              await refresh();
+          try {
+            const x = rect ? rect.right : doc.defaultView.innerWidth / 2;
+            const y = rect ? rect.top  : doc.defaultView.innerHeight / 2;
+            const comments = await adapter.getAnnotations(project, url);
+            const existing = comments.find(c => c.selector === selector);
+            if (existing) {
+              await openEditDialog(existing.id, x, y);
+            } else {
+              const result = await panel.showDialogAt(x, y, { existing: '', showDelete: false });
+              if (result.action === 'save' && result.text) {
+                await adapter.addAnnotation(project, url, document.title, {
+                  selector,
+                  elementLabel: label,
+                  text: result.text,
+                  meta,
+                });
+                await refresh();
+              }
             }
+          } catch (e) {
+            panel.showToast(`操作失敗：${e.message || e}`);
+          } finally {
+            picker.resume();
           }
-          picker.resume();
         },
         onCancel: () => panel.setPickActive(false),
       });
@@ -183,11 +226,33 @@ import { PanelUI } from './panel.js';
       const ok = await Exporter.copyToClipboard(prompt);
       panel.showToast(ok ? '✓ Prompt 已複製到剪貼簿' : '✗ 複製失敗，請手動複製');
     })
-    .on('saveConfig', async ({ supabaseUrl, supabaseKey }) => {
-      saveConfig({ supabaseUrl, supabaseKey });
-      adapter = getStore();
-      panel.setCloudConfigured(true);
-      panel.showToast('✓ 雲端設定已儲存，重新整理以套用');
+    .on('exportData', async () => {
+      const comments = await adapter.getAnnotations(project, url);
+      const json = Exporter.toPortableJSON(url, comments, {
+        project,
+        pageTitle: doc.title || url,
+      });
+      const ok = await Exporter.copyToClipboard(json);
+      panel.showToast(ok ? '✓ 標註資料已複製' : '✗ 複製失敗，請手動複製');
+    })
+    .on('shareLink', async () => {
+      const comments = await adapter.getAnnotations(project, url);
+      const shareUrl = Exporter.toShareURL(url, comments, {
+        project,
+        pageTitle: doc.title || url,
+      });
+      const ok = await Exporter.copyToClipboard(shareUrl);
+      panel.showToast(ok ? '✓ 分享連結已複製' : '✗ 複製失敗，請手動複製');
+    })
+    .on('importData', async () => {
+      const result = await panel.showImportDialog();
+      if (result.action !== 'import') return;
+      try {
+        const payload = Exporter.parsePortableText(result.text);
+        await importPayload(payload);
+      } catch {
+        panel.showToast('匯入失敗：資料格式不正確');
+      }
     });
 
   // ── Badge click → edit dialog ─────────────────────────────────────────────
@@ -201,7 +266,15 @@ import { PanelUI } from './panel.js';
     }
   });
 
-  await refresh();
+  try {
+    if (sharedData?.comments?.length) {
+      await importPayload(sharedData, { fromLink: true });
+    } else {
+      await refresh();
+    }
+  } catch {
+    // Keep the panel usable even if imported data is invalid.
+  }
 
   window.__commentToolActive = {
     toggle() {
@@ -213,4 +286,4 @@ import { PanelUI } from './panel.js';
   };
 })();
 
-
+

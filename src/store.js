@@ -174,7 +174,7 @@ export class CommentStore {
 
 /**
  * LocalAdapter — wraps all localStorage operations behind the async StorageAdapter interface.
- * Used as fallback when no Supabase config is present.
+ * Sharing happens outside storage through copied JSON or URL hash payloads.
  */
 export class LocalAdapter {
   // ── Projects ─────────────────────────────────────────────────────────────

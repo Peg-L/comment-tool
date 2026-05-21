@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "node build.js",
-    "generate": "node build.js && node generate-bookmarklet.js",
+    "generate": "node build.js",
     "test": "vitest run",
     "dev": "node build.js --watch"
   },

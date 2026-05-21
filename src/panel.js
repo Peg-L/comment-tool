@@ -334,6 +334,18 @@ iconify-icon { font-size: inherit; flex-shrink: 0; }
   transition: background 0.1s;
 }
 .proj-acc-del:hover { background: #f38ba8; color: #1e1e2e; }
+.proj-acc-use {
+  padding: 1px 6px;
+  font-size: 11px;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  background: rgba(137,180,250,0.15);
+  color: #89b4fa;
+  flex-shrink: 0;
+  transition: background 0.1s;
+}
+.proj-acc-use:hover { background: #89b4fa; color: #1e1e2e; }
 .proj-acc-pages {
   padding: 2px 8px 4px 16px;
   margin: 0 8px 4px;
@@ -378,34 +390,6 @@ iconify-icon { font-size: inherit; flex-shrink: 0; }
   font-family: inherit;
 }
 .proj-add-input:focus { border-color: #89b4fa; }
-/* ── Settings overlay ── */
-.settings-overlay {
-  display: none;
-  flex-direction: column;
-  background: #181825;
-  border-bottom: 1px solid #313244;
-  padding: 12px;
-  gap: 10px;
-}
-.settings-overlay.open { display: flex; }
-.settings-title {
-  font-size: 12px; font-weight: 700; color: #cdd6f4;
-  display: flex; align-items: center; gap: 6px;
-}
-.cloud-dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: #6c7086; flex-shrink: 0; transition: background 0.3s;
-}
-.cloud-dot.active { background: #a6e3a1; }
-.settings-field { display: flex; flex-direction: column; gap: 4px; }
-.settings-label { font-size: 11px; color: #6c7086; }
-.settings-input {
-  background: #313244; border: 1px solid #45475a; border-radius: 5px;
-  color: #cdd6f4; font-size: 12px; padding: 5px 8px; outline: none;
-  font-family: monospace; width: 100%; box-sizing: border-box;
-}
-.settings-input:focus { border-color: #89b4fa; }
-.settings-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 2px; }
 /* ── Pick group with switch toggle ── */
 .pick-group {
   display: inline-flex;
@@ -460,16 +444,25 @@ export class PanelUI {
     this._flyoutEl = null;
     this._projFlyoutBtn = null;
     this._flyoutOutsideHandler = null;
-    this._settingsOpen = false;
-    this._settingsEl = null;
-    this._settingsBtn = null;
-    this._cloudConfigured = false;
     this._noProject = false;
     this._clearBtn = null;
   }
 
   on(event, cb) { this._cbs[event] = cb; return this; }
-  _emit(event, ...args) { if (this._cbs[event]) this._cbs[event](...args); }
+  _emit(event, ...args) {
+    const cb = this._cbs[event];
+    if (!cb) return undefined;
+    try {
+      const result = cb(...args);
+      if (result && typeof result.catch === 'function') {
+        result.catch(e => this.showToast(`操作失敗：${e.message || e}`));
+      }
+      return result;
+    } catch (e) {
+      this.showToast(`操作失敗：${e.message || e}`);
+      return undefined;
+    }
+  }
 
   get isCollapsed() { return this._collapsed; }
 
@@ -515,16 +508,10 @@ export class PanelUI {
     this._pickBtn = this._btn('mdi:cursor-default-click', '選取元素', 'btn-primary', () => this._emit('pickRequest'));
     this._visBtn  = this._btn('mdi:eye-off-outline', '隱藏標註', 'btn-neutral', () => this._emit('toggleOverlay'));
     const exportBtn = this._btn('mdi:content-copy', '複製 Prompt', 'btn-success', () => this._emit('exportPrompt'));
-    // Gear / cloud settings button — dot indicates configured state
-    this._settingsBtn = this._doc.createElement('button');
-    this._settingsBtn.className = 'btn btn-neutral';
-    this._settingsBtn.title = '雲端設定';
-    const cloudDot = this._doc.createElement('span');
-    cloudDot.className = 'cloud-dot' + (this._cloudConfigured ? ' active' : '');
-    this._settingsBtn.appendChild(this._icon('mdi:cloud-cog'));
-    this._settingsBtn.appendChild(cloudDot);
-    this._settingsBtn.addEventListener('click', () => this._toggleSettings());
-    tb.append(this._pickBtn, this._visBtn, exportBtn, this._settingsBtn);
+    const copyDataBtn = this._btn('mdi:database-export-outline', '複製資料', 'btn-teal', () => this._emit('exportData'));
+    const importBtn = this._btn('mdi:database-import-outline', '貼上資料', 'btn-neutral', () => this._emit('importData'));
+    const shareBtn = this._btn('mdi:link-variant', '複製連結', 'btn-neutral', () => this._emit('shareLink'));
+    tb.append(this._pickBtn, this._visBtn, exportBtn, copyDataBtn, importBtn, shareBtn);
     p.appendChild(tb);
 
     // Project bar with flyout toggle
@@ -545,11 +532,6 @@ export class PanelUI {
     // Flyout (hidden until toggled open)
     this._flyoutEl = this._el('div', 'proj-flyout');
     p.appendChild(this._flyoutEl);
-
-    // Settings overlay (hidden until toggled)
-    this._settingsEl = this._el('div', 'settings-overlay');
-    this._buildSettings();
-    p.appendChild(this._settingsEl);
 
     // List header with clear button on right
     const listHdr = this._el('div', 'list-header');
@@ -732,12 +714,17 @@ export class PanelUI {
       } else {
         const arrow  = this._icon(isExpanded ? 'mdi:chevron-down' : 'mdi:chevron-right');
         arrow.style.cssText = 'flex-shrink:0; font-size:14px;';
+        const useBtn = this._btn('mdi:check', '使用', 'proj-acc-use', e => {
+          e.stopPropagation();
+          this._closeFlyout();
+          this._emit('selectProject', { name: p });
+        });
         const delBtn = this._btn('mdi:delete', '刪除', 'proj-acc-del', e => {
           e.stopPropagation();
           if (!this._doc.defaultView.confirm(`確定刪除專案「${p}」及其所有標註？`)) return;
           this._emit('deleteProject', { name: p });
         });
-        hdr.append(arrow, delBtn);
+        hdr.append(useBtn, arrow, delBtn);
         hdr.addEventListener('click', () => {
           this._flyoutExpandedProject = isExpanded ? null : p;
           this._emit('flyoutOpen'); // ask index.js to re-render with new expanded state
@@ -903,84 +890,41 @@ export class PanelUI {
     });
   }
 
-  setCloudConfigured(val) {
-    this._cloudConfigured = val;
-    if (this._settingsBtn) {
-      const dot = this._settingsBtn.querySelector('.cloud-dot');
-      if (dot) dot.className = 'cloud-dot' + (val ? ' active' : '');
-    }
-  }
+  showImportDialog() {
+    return new Promise(resolve => {
+      const vw = this._doc.defaultView.innerWidth;
+      const vh = this._doc.defaultView.innerHeight;
+      const W = 300, H = 280;
+      const dialog = this._el('div', 'dialog');
+      dialog.style.left = `${Math.max(12, (vw - W) / 2)}px`;
+      dialog.style.top  = `${Math.max(12, (vh - H) / 2)}px`;
+      dialog.style.width = `${W}px`;
 
-  _buildSettings() {
-    const el = this._settingsEl;
-    el.innerHTML = '';
+      const h3 = this._el('h3', null, '貼上標註資料');
+      const ta = this._doc.createElement('textarea');
+      ta.placeholder = '貼上「複製資料」產生的 JSON，或貼上含有標註資料的分享連結';
+      ta.style.minHeight = '150px';
 
-    const title = this._el('div', 'settings-title');
-    title.appendChild(this._icon('mdi:cloud-sync'));
-    title.appendChild(document.createTextNode(' 雲端同步設定 (Supabase)'));
-    el.appendChild(title);
+      const actions = this._el('div', 'dialog-actions');
+      const spacer = this._el('span', 'spacer');
+      const done = (result) => { dialog.remove(); resolve(result); };
+      const cancelBtn = this._btn('mdi:close', '取消', 'btn-neutral', () => done({ action: 'cancel' }));
+      const importBtn = this._btn('mdi:database-import-outline', '匯入', 'btn-primary', () => {
+        const text = ta.value.trim();
+        done({ action: text ? 'import' : 'cancel', text });
+      });
+      actions.append(spacer, cancelBtn, importBtn);
 
-    const urlField = this._el('div', 'settings-field');
-    urlField.appendChild(this._el('label', 'settings-label', 'Project URL'));
-    const urlInput = this._doc.createElement('input');
-    urlInput.type = 'text'; urlInput.className = 'settings-input';
-    urlInput.placeholder = 'https://xxxx.supabase.co';
-    urlField.appendChild(urlInput);
-    el.appendChild(urlField);
+      dialog.append(h3, ta, actions);
+      this._shadow.appendChild(dialog);
+      requestAnimationFrame(() => ta.focus());
 
-    const keyField = this._el('div', 'settings-field');
-    keyField.appendChild(this._el('label', 'settings-label', 'Anon Key'));
-    const keyInput = this._doc.createElement('input');
-    keyInput.type = 'password'; keyInput.className = 'settings-input';
-    keyInput.placeholder = 'eyJ…';
-    keyField.appendChild(keyInput);
-    el.appendChild(keyField);
-
-    // Load existing values
-    try {
-      const cfg = JSON.parse(localStorage.getItem('comment-tool-config') || '{}');
-      if (cfg.supabaseUrl) urlInput.value = cfg.supabaseUrl;
-      if (cfg.supabaseKey) keyInput.value = cfg.supabaseKey;
-    } catch { /* ignore */ }
-
-    const actions = this._el('div', 'settings-actions');
-    const cancelBtn = this._btn('mdi:close', '取消', 'btn-neutral', () => this._toggleSettings());
-    const clearBtn  = this._btn('mdi:cloud-off', '清除 (用本地)', 'btn-danger', () => {
-      localStorage.removeItem('comment-tool-config');
-      this.setCloudConfigured(false);
-      this._toggleSettings();
-      this.showToast('✓ 已切換回本地儲存');
-    });
-    const saveBtn   = this._btn('mdi:content-save', '儲存', 'btn-primary', () => {
-      const supabaseUrl = urlInput.value.trim();
-      const supabaseKey = keyInput.value.trim();
-      if (!supabaseUrl || !supabaseKey) { this.showToast('請填寫 URL 和 Key'); return; }
-      this._emit('saveConfig', { supabaseUrl, supabaseKey });
-      this._toggleSettings();
-    });
-    actions.append(clearBtn, cancelBtn, saveBtn);
-    el.appendChild(actions);
-
-    [urlInput, keyInput].forEach(inp => {
-      inp.addEventListener('keydown', e => {
-        if (e.key === 'Escape') this._toggleSettings();
-        if (e.key === 'Enter') saveBtn.click();
+      ta.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) importBtn.click();
+        if (e.key === 'Escape') cancelBtn.click();
         e.stopPropagation();
       });
     });
-  }
-
-  _toggleSettings() {
-    this._settingsOpen = !this._settingsOpen;
-    if (this._settingsEl) {
-      if (this._settingsOpen) {
-        this._buildSettings(); // refresh values each time opened
-        this._settingsEl.classList.add('open');
-      } else {
-        this._settingsEl.classList.remove('open');
-      }
-    }
-    if (this._settingsBtn) this._settingsBtn.classList.toggle('active', this._settingsOpen);
   }
 
   unmount() {
@@ -991,9 +935,7 @@ export class PanelUI {
       this._shadow = null;
       this._flyoutEl = null;
       this._projFlyoutBtn = null;
-      this._settingsEl = null;
-      this._settingsBtn = null;
     }
   }
 }
-
+

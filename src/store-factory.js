@@ -1,27 +1,30 @@
 // src/store-factory.js
-import { LocalAdapter }    from './store.js';
-import { SupabaseAdapter } from './store-cloud.js';
+import { LocalAdapter } from './store.js';
 
-const CONFIG_KEY = 'comment-tool-config';
-
-export function loadConfig() {
-  try {
-    return JSON.parse(localStorage.getItem(CONFIG_KEY) || '{}');
-  } catch { return {}; }
+export function hasBuiltInConfig() {
+  return false;
 }
 
-export function saveConfig({ supabaseUrl, supabaseKey }) {
-  localStorage.setItem(CONFIG_KEY, JSON.stringify({ supabaseUrl, supabaseKey }));
+export function loadConfig() {
+  return {};
+}
+
+export function saveConfig() {
+  return undefined;
+}
+
+export function clearConfig() {
+  return undefined;
+}
+
+export function createStoreFromConfig() {
+  return new LocalAdapter();
 }
 
 /**
- * Returns the appropriate StorageAdapter based on saved config.
- * Falls back to LocalAdapter if Supabase credentials are absent.
+ * Returns the local StorageAdapter. Sharing is done by copied data or URL hash,
+ * not by any remote database.
  */
 export function getStore() {
-  const { supabaseUrl, supabaseKey } = loadConfig();
-  if (supabaseUrl && supabaseKey) {
-    return new SupabaseAdapter({ supabaseUrl, supabaseKey });
-  }
   return new LocalAdapter();
 }
