@@ -128,9 +128,14 @@ import { PanelUI } from './panel.js';
   // ── Panel wiring ──────────────────────────────────────────────────────────
   panel
     .on('flyoutOpen', () => refreshFlyout())
-    .on('navigateToPage', ({ url: destUrl, project: destProject }) => {
+    .on('navigateToPage', async ({ url: destUrl, project: destProject }) => {
       if (!destUrl || !destProject) return;
       if (destProject === project && destUrl === url) return;
+      if (destUrl === url) {
+        await activateProject(destProject);
+        await refreshFlyout();
+        return;
+      }
       setCurrentProject(destProject);
       try {
         window.location.href = destUrl;
@@ -159,6 +164,32 @@ import { PanelUI } from './panel.js';
           setActiveProject('');
           panel.refresh([], () => false);
         }
+      }
+
+      await refreshFlyout();
+    })
+    .on('renameProject', async ({ oldName, newName }) => {
+      if (!oldName || !newName || oldName === newName) return;
+      try {
+        await adapter.renameProject(oldName, newName);
+      } catch (e) {
+        panel.showToast(e.message === 'PROJECT_EXISTS' ? '已有相同名稱的專案' : `改名失敗：${e.message || e}`);
+        return;
+      }
+
+      if (oldName === project) {
+        setActiveProject(newName);
+        await refresh();
+      }
+      await refreshFlyout();
+    })
+    .on('deleteProjectPage', async ({ project: targetProject, url: targetUrl }) => {
+      if (!targetProject || !targetUrl) return;
+      await adapter.deleteProjectPage(targetProject, targetUrl);
+
+      if (targetProject === project && targetUrl === url) {
+        overlay.clearAll();
+        panel.refresh([], () => false);
       }
 
       await refreshFlyout();

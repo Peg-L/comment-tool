@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   createProject, listProjects, listProjectPages, deleteProject,
+  deleteProjectPage, renameProject,
   CommentStore,
 } from '../src/store.js';
 
@@ -83,5 +84,36 @@ describe('deleteProject', () => {
     createProject('remove');
     deleteProject('remove');
     expect(listProjects()).toContain('keep');
+  });
+});
+
+describe('renameProject', () => {
+  it('moves annotation pages to the new project name', () => {
+    new CommentStore('old-name', 'https://example.com/page').add('h1', 'H', 'note');
+
+    renameProject('old-name', 'new-name');
+
+    expect(listProjects()).toContain('new-name');
+    expect(listProjects()).not.toContain('old-name');
+    expect(listProjectPages('new-name')).toHaveLength(1);
+    expect(listProjectPages('old-name')).toEqual([]);
+  });
+
+  it('does not overwrite an existing project name', () => {
+    createProject('taken');
+    createProject('source');
+
+    expect(() => renameProject('source', 'taken')).toThrow('PROJECT_EXISTS');
+  });
+});
+
+describe('deleteProjectPage', () => {
+  it('removes only the selected page from a project', () => {
+    new CommentStore('proj', 'https://example.com/a').add('h1', 'A', 'note');
+    new CommentStore('proj', 'https://example.com/b').add('h1', 'B', 'note');
+
+    deleteProjectPage('proj', 'https://example.com/a');
+
+    expect(listProjectPages('proj').map(p => p.path)).toEqual(['/b']);
   });
 });

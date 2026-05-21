@@ -18,6 +18,10 @@ function generateId() {
   return Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 }
 
+function projectPageKey(projectName, pageUrl) {
+  return `${STORAGE_PREFIX}${projectName}:${pageUrl}`;
+}
+
 /** Persist / retrieve the last-used project name across page loads. */
 export function getCurrentProject() {
   return localStorage.getItem(CURRENT_PROJECT_KEY) || '';
@@ -95,13 +99,48 @@ export function deleteProject(name) {
   _saveProjectList(_getProjectList().filter(p => p !== name));
 }
 
+/** Rename a project and move all page annotations under the new name. */
+export function renameProject(oldName, newName) {
+  const from = (oldName || '').trim();
+  const to = (newName || '').trim();
+  if (!from || !to || from === to) return;
+  if (listProjects().includes(to)) throw new Error('PROJECT_EXISTS');
+
+  const oldPrefix = `${STORAGE_PREFIX}${from}:`;
+  const moves = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key && key.startsWith(oldPrefix)) {
+      moves.push({
+        oldKey: key,
+        newKey: `${STORAGE_PREFIX}${to}:${key.slice(oldPrefix.length)}`,
+        value: localStorage.getItem(key),
+      });
+    }
+  }
+
+  moves.forEach(({ newKey, value }) => localStorage.setItem(newKey, value));
+  moves.forEach(({ oldKey }) => localStorage.removeItem(oldKey));
+
+  const list = _getProjectList().filter(p => p !== from);
+  if (!list.includes(to)) list.push(to);
+  _saveProjectList(list);
+
+  if (getCurrentProject() === from) setCurrentProject(to);
+}
+
+/** Remove annotations for a single page inside one project. */
+export function deleteProjectPage(projectName, pageUrl) {
+  localStorage.removeItem(projectPageKey(projectName, pageUrl));
+}
+
 export class CommentStore {
   /**
    * @param {string} project  Project name / identifier
    * @param {string} url      Full page URL
    */
   constructor(project, url) {
-    this._key = `${STORAGE_PREFIX}${project}:${url}`;
+    this._key = projectPageKey(project, url);
     this._data = this._load();
   }
 
@@ -192,8 +231,17 @@ export class LocalAdapter {
     deleteProject(id);
   }
 
+  async renameProject(id, name) {
+    renameProject(id, name);
+    return { id: name, name };
+  }
+
   async listProjectPages(projectId) {
     return listProjectPages(projectId);
+  }
+
+  async deleteProjectPage(projectId, pageUrl) {
+    deleteProjectPage(projectId, pageUrl);
   }
 
   // ── Annotations ───────────────────────────────────────────────────────────
