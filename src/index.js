@@ -209,6 +209,10 @@ import { PanelUI } from './panel.js';
     .on('delete', async (id) => {
       await deleteAnnotation(id);
     })
+    .on('toggleStatus', async ({ id, status }) => {
+      await adapter.setAnnotationStatus(id, status, project, url);
+      await refresh();
+    })
     .on('toggleDone', async ({ id, done }) => {
       await adapter.setAnnotationDone(id, done, project, url);
       await refresh();

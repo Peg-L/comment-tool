@@ -175,6 +175,55 @@ iconify-icon { font-size: inherit; flex-shrink: 0; }
   margin: 0;
   flex-shrink: 0;
 }
+.status-select {
+  background: #313244;
+  color: #cdd6f4;
+  border: 1px solid #45475a;
+  border-radius: 4px;
+  font-size: 10px;
+  padding: 1px 4px;
+  cursor: pointer;
+  outline: none;
+  height: 20px;
+}
+.status-select:hover { border-color: #89b4fa; }
+.status-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.status-尚未開始 { background: #45475a; color: #bac2de; }
+.status-進行中 { background: #89b4fa; color: #1e1e2e; }
+.status-審核中 { background: #fab387; color: #1e1e2e; }
+.status-已核准 { background: #a6e3a1; color: #1e1e2e; }
+.status-不調整 { background: #6c7086; color: #cdd6f4; }
+.status-待確認 { background: #f9e2af; color: #1e1e2e; }
+.status-暫緩 { background: #eba0ac; color: #1e1e2e; }
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 12px;
+  background: #181825;
+  border-bottom: 1px solid #313244;
+}
+.filter-pill {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  background: #313244;
+  color: #a6adc8;
+  border: 1px solid transparent;
+  transition: all 0.1s;
+  user-select: none;
+}
+.filter-pill:hover { border-color: #45475a; }
+.filter-pill.active { background: #45475a; color: #cdd6f4; border-color: #89b4fa; }
+.filter-pill.all { font-weight: 700; background: #1e1e2e; }
+.filter-pill.all.active { border-color: #f5c2e7; color: #f5c2e7; }
 .badge {
   flex-shrink: 0;
   width: 18px;
@@ -489,11 +538,18 @@ export class PanelUI {
     this._flyoutOutsideHandler = null;
     this._noProject = false;
     this._pageSearch = "";
-    this._mode = "reviewer";
-    this._hideDone = false;
     this._lastRefresh = null;
-    this._modeSwitch = null;
-    this._hideDoneControl = null;
+    this._statusList = [
+      "尚未開始",
+      "進行中",
+      "審核中",
+      "已核准",
+      "不調整",
+      "待確認",
+      "暫緩",
+    ];
+    this._activeFilters = new Set(this._statusList);
+    this._filterBar = null;
   }
 
   on(event, cb) {
@@ -626,41 +682,33 @@ export class PanelUI {
     this._flyoutEl = this._el("div", "proj-flyout");
     p.appendChild(this._flyoutEl);
 
-    const modeBar = this._el("div", "mode-bar");
-    this._reviewerModeLabel = this._el("span", "mode-label active", "審核者");
-    this._developerModeLabel = this._el("span", "mode-label", "開發者");
-    this._modeSwitch = this._doc.createElement("button");
-    this._modeSwitch.type = "button";
-    this._modeSwitch.className = "mode-switch";
-    this._modeSwitch.title = "切換審核者 / 開發者模式";
-    this._modeSwitch.appendChild(this._el("span", "mode-switch-knob"));
-    this._modeSwitch.addEventListener("click", () =>
-      this._setMode(this._mode === "reviewer" ? "developer" : "reviewer"),
-    );
-    modeBar.append(
-      this._reviewerModeLabel,
-      this._modeSwitch,
-      this._developerModeLabel,
-    );
-    p.appendChild(modeBar);
+    // Filter bar
+    this._filterBar = this._el("div", "filter-bar");
+    const allPill = this._el("span", "filter-pill all active", "全部");
+    allPill.addEventListener("click", () => {
+      if (this._activeFilters.size === this._statusList.length) {
+        this._activeFilters.clear();
+      } else {
+        this._statusList.forEach((s) => this._activeFilters.add(s));
+      }
+      this._rerenderFilters();
+    });
+    this._filterBar.appendChild(allPill);
+
+    this._statusList.forEach((s) => {
+      const pill = this._el("span", "filter-pill active", s);
+      pill.addEventListener("click", () => {
+        if (this._activeFilters.has(s)) this._activeFilters.delete(s);
+        else this._activeFilters.add(s);
+        this._rerenderFilters();
+      });
+      this._filterBar.appendChild(pill);
+    });
+    p.appendChild(this._filterBar);
 
     // List header
     const listHdr = this._el("div", "list-header");
     listHdr.appendChild(this._el("span", "list-header-title", "標註清單"));
-    this._hideDoneControl = this._doc.createElement("label");
-    this._hideDoneControl.className = "hide-done-control";
-    const hideDoneInput = this._doc.createElement("input");
-    hideDoneInput.type = "checkbox";
-    hideDoneInput.checked = this._hideDone;
-    hideDoneInput.addEventListener("change", () => {
-      this._hideDone = hideDoneInput.checked;
-      this._rerenderLast();
-    });
-    this._hideDoneControl.append(
-      hideDoneInput,
-      this._doc.createTextNode("隱藏已完成"),
-    );
-    listHdr.appendChild(this._hideDoneControl);
     p.appendChild(listHdr);
 
     // List
@@ -668,6 +716,21 @@ export class PanelUI {
     this._listEl.innerHTML =
       '<div class="empty">尚無標註。點擊「選取元素」開始。</div>';
     p.appendChild(this._listEl);
+  }
+
+  _rerenderFilters() {
+    const pills = this._filterBar.querySelectorAll(".filter-pill");
+    const allPill = this._filterBar.querySelector(".filter-pill.all");
+
+    const isAll = this._activeFilters.size === this._statusList.length;
+    allPill.classList.toggle("active", isAll);
+
+    pills.forEach((p) => {
+      if (p === allPill) return;
+      p.classList.toggle("active", this._activeFilters.has(p.textContent));
+    });
+
+    this._rerenderLast();
   }
 
   _el(tag, cls, text) {
@@ -694,29 +757,6 @@ export class PanelUI {
     }
     b.addEventListener("click", onClick);
     return b;
-  }
-
-  _setMode(mode) {
-    this._mode = mode === "developer" ? "developer" : "reviewer";
-    if (this._modeSwitch) {
-      this._modeSwitch.classList.toggle("dev", this._mode === "developer");
-    }
-    if (this._reviewerModeLabel)
-      this._reviewerModeLabel.classList.toggle(
-        "active",
-        this._mode === "reviewer",
-      );
-    if (this._developerModeLabel)
-      this._developerModeLabel.classList.toggle(
-        "active",
-        this._mode === "developer",
-      );
-    if (this._hideDoneControl)
-      this._hideDoneControl.classList.toggle(
-        "visible",
-        this._mode === "developer",
-      );
-    this._rerenderLast();
   }
 
   _rerenderLast() {
@@ -757,49 +797,56 @@ export class PanelUI {
     this._lastRefresh = { comments, isMissing, onLocate };
     this._listEl.innerHTML = "";
 
-    let visibleComments =
-      this._mode === "developer" && this._hideDone
-        ? comments.filter((c) => !c.done)
-        : [...comments];
+    const filtered = comments.filter((c) =>
+      this._activeFilters.has(c.status || "尚未開始"),
+    );
 
-    // In developer mode, move "done" items to the bottom
-    if (this._mode === "developer" && !this._hideDone) {
-      const pending = visibleComments.filter(c => !c.done);
-      const done = visibleComments.filter(c => c.done);
-      visibleComments = [...pending, ...done];
-    }
+    // Reorder: Terminal states at bottom
+    const terminalStatuses = ["已核准", "不調整", "暫緩"];
+    const pending = filtered.filter(
+      (c) => !terminalStatuses.includes(c.status || "尚未開始"),
+    );
+    const done = filtered.filter((c) =>
+      terminalStatuses.includes(c.status || "尚未開始"),
+    );
+    const visibleComments = [...pending, ...done];
 
     if (!visibleComments.length) {
       this._listEl.innerHTML = comments.length
-        ? '<div class="empty">已隱藏完成項目。</div>'
+        ? '<div class="empty">沒有符合篩選條件的標註。</div>'
         : '<div class="empty">尚無標註。點擊「選取元素」開始。</div>';
       return;
     }
 
     visibleComments.forEach((c, i) => {
       const missing = isMissing(c.id);
-      const isDone = this._mode === "developer" && c.done;
+      const terminalStatuses = ["已核准", "不調整", "暫緩"];
+      const isDone = terminalStatuses.includes(c.status || "尚未開始");
       const meta = c.meta || {};
       const item = this._el(
         "div",
         "comment-item" + (missing ? " missing" : "") + (isDone ? " done" : ""),
       );
 
-      // Header: badge + tagName chip + selector label
+      // Header: status select + badge + tagName chip + selector label
       const hdr = this._el("div", "comment-header");
-      if (this._mode === "developer") {
-        const doneBox = this._doc.createElement("input");
-        doneBox.type = "checkbox";
-        doneBox.className = "comment-done-box";
-        doneBox.checked = !!c.done;
-        doneBox.title = "標記為已完成";
-        doneBox.addEventListener("click", (e) => e.stopPropagation());
-        doneBox.addEventListener("change", (e) => {
-          e.stopPropagation();
-          this._emit("toggleDone", { id: c.id, done: doneBox.checked });
-        });
-        hdr.appendChild(doneBox);
-      }
+
+      const select = this._doc.createElement("select");
+      select.className = "status-select";
+      this._statusList.forEach((s) => {
+        const opt = this._doc.createElement("option");
+        opt.value = s;
+        opt.textContent = s;
+        if (s === (c.status || "尚未開始")) opt.selected = true;
+        select.appendChild(opt);
+      });
+      select.addEventListener("click", (e) => e.stopPropagation());
+      select.addEventListener("change", (e) => {
+        e.stopPropagation();
+        this._emit("toggleStatus", { id: c.id, status: select.value });
+      });
+      hdr.appendChild(select);
+
       const badge = this._el("span", "badge", String(i + 1));
       badge.style.background = RED;
       hdr.appendChild(badge);
@@ -840,14 +887,12 @@ export class PanelUI {
       item.appendChild(actions);
 
       // Top-right Delete button (Trash icon)
-      if (this._mode === "reviewer") {
-        const delBtn = this._btn("mdi:delete-outline", null, "btn-del", (e) => {
-          e.stopPropagation();
-          this._emit("delete", c.id);
-        });
-        delBtn.title = "刪除標註";
-        item.appendChild(delBtn);
-      }
+      const delBtn = this._btn("mdi:delete-outline", null, "btn-del", (e) => {
+        e.stopPropagation();
+        this._emit("delete", c.id);
+      });
+      delBtn.title = "刪除標註";
+      item.appendChild(delBtn);
 
       // Click item → scroll to element + pulse glow
       item.addEventListener("click", () => {

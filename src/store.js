@@ -169,6 +169,7 @@ export class CommentStore {
       elementLabel,
       text,
       meta,
+      status: '尚未開始',
       done: false,
       createdAt: new Date().toISOString(),
     };
@@ -189,11 +190,17 @@ export class CommentStore {
     this._save();
   }
 
-  setDone(id, done) {
+  setStatus(id, status) {
     const comment = this._data.comments.find(c => c.id === id);
     if (!comment) return;
-    comment.done = !!done;
+    comment.status = status;
+    // Keep 'done' for backward compatibility or simple logic where needed
+    comment.done = ['已核准', '不調整', '暫緩'].includes(status);
     this._save();
+  }
+
+  setDone(id, done) {
+    this.setStatus(id, done ? '已核准' : '尚未開始');
   }
 
   clear() {
@@ -265,6 +272,10 @@ export class LocalAdapter {
 
   async setAnnotationDone(id, done, projectId, pageUrl) {
     new CommentStore(projectId, pageUrl).setDone(id, done);
+  }
+
+  async setAnnotationStatus(id, status, projectId, pageUrl) {
+    new CommentStore(projectId, pageUrl).setStatus(id, status);
   }
 
   async clearAnnotations(projectId, pageUrl) {
