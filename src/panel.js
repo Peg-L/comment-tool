@@ -186,7 +186,8 @@ iconify-icon { font-size: inherit; flex-shrink: 0; }
   outline: none;
   height: 20px;
 }
-.status-select:hover { border-color: #89b4fa; }
+.status-select:hover { border-color: #cdd6f4; filter: brightness(1.2); }
+.status-select:not(.status-審核中):not(.status-已核准):hover { background: #2d2d3d; filter: none; }
 .status-badge {
   font-size: 10px;
   font-weight: 700;
@@ -194,13 +195,9 @@ iconify-icon { font-size: inherit; flex-shrink: 0; }
   border-radius: 4px;
   white-space: nowrap;
 }
-.status-尚未開始 { background: #45475a; color: #bac2de; }
-.status-進行中 { background: #89b4fa; color: #1e1e2e; }
-.status-審核中 { background: #fab387; color: #1e1e2e; }
-.status-已核准 { background: #a6e3a1; color: #1e1e2e; }
-.status-不調整 { background: #6c7086; color: #cdd6f4; }
-.status-待確認 { background: #f9e2af; color: #1e1e2e; }
-.status-暫緩 { background: #eba0ac; color: #1e1e2e; }
+.status-尚未開始, .status-進行中, .status-不調整, .status-待確認, .status-暫緩 { background: #313244; color: #cdd6f4; }
+.status-審核中 { background: #0B57D0; color: #ffffff; }
+.status-已核准 { background: #D4EDBC; color: #1e1e2e; }
 .filter-bar {
   display: flex;
   flex-wrap: wrap;
@@ -302,7 +299,7 @@ iconify-icon { font-size: inherit; flex-shrink: 0; }
   color: #89b4fa;
   transition: background 0.1s;
 }
-.btn-edit-item:hover { background: #89b4fa; color: #1e1e2e; }
+.btn-edit-item:hover { filter: brightness(1.2); }
 .empty {
   text-align: center;
   padding: 40px 16px;
@@ -831,13 +828,15 @@ export class PanelUI {
       // Header: status select + badge + tagName chip + selector label
       const hdr = this._el("div", "comment-header");
 
+      const status = c.status || "尚未開始";
       const select = this._doc.createElement("select");
-      select.className = "status-select";
+      select.className = `status-select status-${status}`;
       this._statusList.forEach((s) => {
         const opt = this._doc.createElement("option");
         opt.value = s;
         opt.textContent = s;
-        if (s === (c.status || "尚未開始")) opt.selected = true;
+        opt.className = `status-${s}`;
+        if (s === status) opt.selected = true;
         select.appendChild(opt);
       });
       select.addEventListener("click", (e) => e.stopPropagation());
