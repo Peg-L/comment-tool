@@ -139,7 +139,6 @@ context: |
   - Delete an entire project and all its annotations.
   - Expand a project to inspect pages with annotation counts.
   - Click a page to navigate to that page and activate the project.
-  - Delete annotations for a specific project page.
   
   If a clicked page URL equals the current page URL but belongs to a different project, the tool switches project and refreshes in place instead of forcing navigation.
   

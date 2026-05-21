@@ -144,17 +144,6 @@ import { PanelUI } from './panel.js';
         setCurrentProject(project);
       }
     })
-    .on('deleteProjectPage', async ({ url: targetUrl }) => {
-      if (!targetUrl) return;
-      await adapter.deleteProjectPage(project, targetUrl);
-
-      if (targetUrl === url) {
-        overlay.clearAll();
-        panel.refresh([], () => false);
-      }
-
-      await refreshPages();
-    })
     .on('pickRequest', () => {
       if (picker.isActive) {
         picker.stop();

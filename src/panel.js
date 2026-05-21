@@ -744,10 +744,11 @@ export class PanelUI {
 
     visibleComments.forEach((c, i) => {
       const missing = isMissing(c.id);
+      const isDone = this._mode === "developer" && c.done;
       const meta = c.meta || {};
       const item = this._el(
         "div",
-        "comment-item" + (missing ? " missing" : "") + (c.done ? " done" : ""),
+        "comment-item" + (missing ? " missing" : "") + (isDone ? " done" : ""),
       );
 
       // Header: badge + tagName chip + selector label
@@ -927,18 +928,7 @@ export class PanelUI {
         this._closeFlyout();
         this._emit("navigateToPage", { url });
       });
-      const pageDel = this._btn(
-        "mdi:close",
-        "刪除頁面",
-        "proj-page-del",
-        (e) => {
-          e.stopPropagation();
-          if (!this._doc.defaultView.confirm(`刪除 ${path} 的所有標註？`))
-            return;
-          this._emit("deleteProjectPage", { url });
-        },
-      );
-      pageRow.append(link, pageDel);
+      pageRow.append(link);
       pagesDiv.appendChild(pageRow);
     });
     list.appendChild(pagesDiv);

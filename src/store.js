@@ -130,11 +130,6 @@ export function renameProject(oldName, newName) {
   if (getCurrentProject() === from) setCurrentProject(to);
 }
 
-/** Remove annotations for a single page inside one project. */
-export function deleteProjectPage(projectName, pageUrl) {
-  localStorage.removeItem(projectPageKey(projectName, pageUrl));
-}
-
 export class CommentStore {
   /**
    * @param {string} project  Project name / identifier
@@ -247,10 +242,6 @@ export class LocalAdapter {
 
   async listProjectPages(projectId) {
     return listProjectPages(projectId);
-  }
-
-  async deleteProjectPage(projectId, pageUrl) {
-    deleteProjectPage(projectId, pageUrl);
   }
 
   // ── Annotations ───────────────────────────────────────────────────────────
