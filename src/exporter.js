@@ -52,6 +52,24 @@ export class Exporter {
     return JSON.stringify(this.toPortableData(pageUrl, comments, opts), null, 2);
   }
 
+  static toProjectData(project, pages) {
+    return {
+      version: 1,
+      type: 'comment-tool-project',
+      project,
+      pages: pages.map(page => ({
+        url: page.url || '',
+        path: page.path || '',
+        pageTitle: page.pageTitle || '',
+        comments: Array.isArray(page.comments) ? page.comments : [],
+      })),
+    };
+  }
+
+  static toProjectJSON(project, pages) {
+    return JSON.stringify(this.toProjectData(project, pages), null, 2);
+  }
+
   static _encodePayload(payload) {
     return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
   }
@@ -122,9 +140,28 @@ export class Exporter {
   }
 
   static _normalizePayload(payload) {
-    if (!payload || !payload.version || !Array.isArray(payload.comments)) {
+    if (!payload || !payload.version) {
       throw new Error('INVALID_FORMAT');
     }
+
+    if (Array.isArray(payload.pages)) {
+      return {
+        version: payload.version,
+        type: payload.type || 'comment-tool-project',
+        project: payload.project || '',
+        pages: payload.pages.map(page => ({
+          url: page.url || '',
+          path: page.path || '',
+          pageTitle: page.pageTitle || '',
+          comments: Array.isArray(page.comments) ? page.comments : [],
+        })).filter(page => page.url),
+      };
+    }
+
+    if (!Array.isArray(payload.comments)) {
+      throw new Error('INVALID_FORMAT');
+    }
+
     return {
       version: payload.version,
       type: payload.type || 'comment-tool-annotations',

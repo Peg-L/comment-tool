@@ -117,3 +117,14 @@ describe('deleteProjectPage', () => {
     expect(listProjectPages('proj').map(p => p.path)).toEqual(['/b']);
   });
 });
+
+describe('CommentStore completion state', () => {
+  it('marks an annotation as done', () => {
+    const store = new CommentStore('proj', 'https://example.com/a');
+    const comment = store.add('h1', 'H', 'note');
+
+    store.setDone(comment.id, true);
+
+    expect(store.getAll()[0].done).toBe(true);
+  });
+});

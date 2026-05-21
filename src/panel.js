@@ -92,6 +92,7 @@ iconify-icon { font-size: inherit; flex-shrink: 0; }
   display: flex;
   align-items: center;
   padding: 6px 12px 4px;
+  gap: 8px;
 }
 .list-header-title {
   flex: 1;
@@ -101,19 +102,52 @@ iconify-icon { font-size: inherit; flex-shrink: 0; }
   text-transform: uppercase;
   color: #6c7086;
 }
-.list-header-clear {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #6c7086;
-  font-size: 16px;
-  padding: 2px 4px;
-  border-radius: 4px;
-  display: inline-flex;
+.mode-bar {
+  display: flex;
   align-items: center;
-  line-height: 1;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px 6px;
+  background: #181825;
+  border-bottom: 1px solid #313244;
+  font-size: 12px;
+  color: #6c7086;
 }
-.list-header-clear:hover { color: #f38ba8; }
+.mode-label.active { color: #cdd6f4; font-weight: 700; }
+.mode-switch {
+  width: 34px;
+  height: 18px;
+  border: none;
+  border-radius: 999px;
+  background: #45475a;
+  padding: 2px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.mode-switch.dev { background: #89b4fa; }
+.mode-switch-knob {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+.mode-switch.dev .mode-switch-knob { transform: translateX(16px); }
+.hide-done-control {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  color: #a6adc8;
+  font-size: 11px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.hide-done-control.visible { display: inline-flex; }
+.hide-done-control input,
+.comment-done-box {
+  accent-color: #a6e3a1;
+}
 .list {
   flex: 1;
   overflow-y: auto;
@@ -130,7 +164,15 @@ iconify-icon { font-size: inherit; flex-shrink: 0; }
 }
 .comment-item:hover { background: #313244; }
 .comment-item.missing { opacity: 0.5; }
+.comment-item.done { opacity: 0.58; }
+.comment-item.done .comment-text { text-decoration: line-through; color: #8b8fa7; }
 .comment-header { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
+.comment-done-box {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  flex-shrink: 0;
+}
 .badge {
   flex-shrink: 0;
   width: 18px;
@@ -419,8 +461,12 @@ export class PanelUI {
     this._projFlyoutBtn = null;
     this._flyoutOutsideHandler = null;
     this._noProject = false;
-    this._clearBtn = null;
     this._pageSearch = '';
+    this._mode = 'reviewer';
+    this._hideDone = false;
+    this._lastRefresh = null;
+    this._modeSwitch = null;
+    this._hideDoneControl = null;
   }
 
   on(event, cb) { this._cbs[event] = cb; return this; }
@@ -440,6 +486,7 @@ export class PanelUI {
   }
 
   get isCollapsed() { return this._collapsed; }
+  get isDeveloperMode() { return this._mode === 'developer'; }
 
   mount() {
     if (this._host) return;
@@ -508,17 +555,32 @@ export class PanelUI {
     this._flyoutEl = this._el('div', 'proj-flyout');
     p.appendChild(this._flyoutEl);
 
-    // List header with clear button on right
+    const modeBar = this._el('div', 'mode-bar');
+    this._reviewerModeLabel = this._el('span', 'mode-label active', '審核者');
+    this._developerModeLabel = this._el('span', 'mode-label', '開發者');
+    this._modeSwitch = this._doc.createElement('button');
+    this._modeSwitch.type = 'button';
+    this._modeSwitch.className = 'mode-switch';
+    this._modeSwitch.title = '切換審核者 / 開發者模式';
+    this._modeSwitch.appendChild(this._el('span', 'mode-switch-knob'));
+    this._modeSwitch.addEventListener('click', () => this._setMode(this._mode === 'reviewer' ? 'developer' : 'reviewer'));
+    modeBar.append(this._reviewerModeLabel, this._modeSwitch, this._developerModeLabel);
+    p.appendChild(modeBar);
+
+    // List header
     const listHdr = this._el('div', 'list-header');
     listHdr.appendChild(this._el('span', 'list-header-title', '標註清單'));
-    this._clearBtn = this._doc.createElement('button');
-    this._clearBtn.className = 'list-header-clear';
-    this._clearBtn.title = '清除全部標註';
-    this._clearBtn.appendChild(this._icon('mdi:trash-can-outline'));
-    this._clearBtn.addEventListener('click', () => {
-      if (this._doc.defaultView.confirm('確定清除所有標註？')) this._emit('clear');
+    this._hideDoneControl = this._doc.createElement('label');
+    this._hideDoneControl.className = 'hide-done-control';
+    const hideDoneInput = this._doc.createElement('input');
+    hideDoneInput.type = 'checkbox';
+    hideDoneInput.checked = this._hideDone;
+    hideDoneInput.addEventListener('change', () => {
+      this._hideDone = hideDoneInput.checked;
+      this._rerenderLast();
     });
-    listHdr.appendChild(this._clearBtn);
+    this._hideDoneControl.append(hideDoneInput, this._doc.createTextNode('隱藏已完成'));
+    listHdr.appendChild(this._hideDoneControl);
     p.appendChild(listHdr);
 
     // List
@@ -553,6 +615,22 @@ export class PanelUI {
     return b;
   }
 
+  _setMode(mode) {
+    this._mode = mode === 'developer' ? 'developer' : 'reviewer';
+    if (this._modeSwitch) {
+      this._modeSwitch.classList.toggle('dev', this._mode === 'developer');
+    }
+    if (this._reviewerModeLabel) this._reviewerModeLabel.classList.toggle('active', this._mode === 'reviewer');
+    if (this._developerModeLabel) this._developerModeLabel.classList.toggle('active', this._mode === 'developer');
+    if (this._hideDoneControl) this._hideDoneControl.classList.toggle('visible', this._mode === 'developer');
+    this._rerenderLast();
+  }
+
+  _rerenderLast() {
+    if (!this._lastRefresh) return;
+    this.refresh(this._lastRefresh.comments, this._lastRefresh.isMissing, this._lastRefresh.onLocate);
+  }
+
   _toggleCollapse() {
     this._collapsed = !this._collapsed;
     this._panel.classList.toggle('collapsed', this._collapsed);
@@ -571,20 +649,40 @@ export class PanelUI {
 
   refresh(comments, isMissing, onLocate) {
     if (!this._listEl) return;
+    this._lastRefresh = { comments, isMissing, onLocate };
     this._listEl.innerHTML = '';
 
-    if (!comments.length) {
-      this._listEl.innerHTML = '<div class="empty">尚無標註。點擊「選取元素」開始。</div>';
+    const visibleComments = this._mode === 'developer' && this._hideDone
+      ? comments.filter(c => !c.done)
+      : comments;
+
+    if (!visibleComments.length) {
+      this._listEl.innerHTML = comments.length
+        ? '<div class="empty">已隱藏完成項目。</div>'
+        : '<div class="empty">尚無標註。點擊「選取元素」開始。</div>';
       return;
     }
 
-    comments.forEach((c, i) => {
+    visibleComments.forEach((c, i) => {
       const missing = isMissing(c.id);
       const meta = c.meta || {};
-      const item = this._el('div', 'comment-item' + (missing ? ' missing' : ''));
+      const item = this._el('div', 'comment-item' + (missing ? ' missing' : '') + (c.done ? ' done' : ''));
 
       // Header: badge + tagName chip + selector label
       const hdr = this._el('div', 'comment-header');
+      if (this._mode === 'developer') {
+        const doneBox = this._doc.createElement('input');
+        doneBox.type = 'checkbox';
+        doneBox.className = 'comment-done-box';
+        doneBox.checked = !!c.done;
+        doneBox.title = '標記為已完成';
+        doneBox.addEventListener('click', e => e.stopPropagation());
+        doneBox.addEventListener('change', e => {
+          e.stopPropagation();
+          this._emit('toggleDone', { id: c.id, done: doneBox.checked });
+        });
+        hdr.appendChild(doneBox);
+      }
       const badge = this._el('span', 'badge', String(i + 1));
       badge.style.background = RED;
       hdr.appendChild(badge);
@@ -609,8 +707,11 @@ export class PanelUI {
       // Actions
       const actions = this._el('div', 'comment-actions');
       const editBtn = this._btn('mdi:pencil', '編輯', 'btn-edit-item', (e) => { e.stopPropagation(); this._emit('edit', c.id); });
-      const delBtn  = this._btn('mdi:delete', '刪除', 'btn-del', (e) => { e.stopPropagation(); this._emit('delete', c.id); });
-      actions.append(editBtn, delBtn);
+      actions.appendChild(editBtn);
+      if (this._mode === 'reviewer') {
+        const delBtn = this._btn('mdi:delete', '刪除', 'btn-del', (e) => { e.stopPropagation(); this._emit('delete', c.id); });
+        actions.appendChild(delBtn);
+      }
       item.appendChild(actions);
 
       // Click item → scroll to element + pulse glow
@@ -849,7 +950,7 @@ export class PanelUI {
 
       const h3 = this._el('h3', null, '貼上標註資料');
       const ta = this._doc.createElement('textarea');
-      ta.placeholder = '貼上「複製資料」產生的 JSON，或貼上含有標註資料的分享連結';
+      ta.placeholder = '貼上「複製資料」產生的整個專案 JSON，或貼上含有標註資料的分享連結';
       ta.style.minHeight = '150px';
 
       const actions = this._el('div', 'dialog-actions');

@@ -48,6 +48,30 @@ import { PanelUI } from './panel.js';
   }
 
   async function importPayload(payload, { fromLink = false } = {}) {
+    if (payload?.pages?.length) {
+      const existingPages = await adapter.listProjectPages(project);
+      if (
+        existingPages.length &&
+        !doc.defaultView.confirm(`匯入會覆蓋 ${payload.pages.length} 個頁面的同網址標註，確定繼續？`)
+      ) {
+        return;
+      }
+
+      for (const page of payload.pages) {
+        await adapter.importPageJSON(
+          project,
+          page.url,
+          page.pageTitle || page.url,
+          JSON.stringify({ version: 1, url: page.url, comments: page.comments || [] })
+        );
+      }
+
+      await refresh();
+      await refreshPages();
+      panel.showToast(`✓ 已匯入 ${payload.pages.length} 個頁面的標註資料`);
+      return;
+    }
+
     if (!payload?.comments?.length) {
       panel.showToast('沒有可匯入的標註資料');
       return;
@@ -98,7 +122,7 @@ import { PanelUI } from './panel.js';
       }
     }
 
-    const result = await panel.showDialogAt(x, y, { existing: comment.text, showDelete: true });
+    const result = await panel.showDialogAt(x, y, { existing: comment.text, showDelete: !panel.isDeveloperMode });
     if (result.action === 'save' && result.text) {
       await adapter.updateAnnotation(id, result.text, project, url);
       await refresh();
@@ -173,11 +197,9 @@ import { PanelUI } from './panel.js';
       await adapter.deleteAnnotation(id, project, url);
       await refresh();
     })
-    .on('clear', async () => {
-      await adapter.clearAnnotations(project, url);
-      overlay.clearAll();
-      panel.refresh([], () => false);
-      panel.setOverlayVisible(true);
+    .on('toggleDone', async ({ id, done }) => {
+      await adapter.setAnnotationDone(id, done, project, url);
+      await refresh();
     })
     .on('toggleOverlay', () => {
       if (overlay.isVisible) {
@@ -195,13 +217,18 @@ import { PanelUI } from './panel.js';
       panel.showToast(ok ? '✓ Prompt 已複製到剪貼簿' : '✗ 複製失敗，請手動複製');
     })
     .on('exportData', async () => {
-      const comments = await adapter.getAnnotations(project, url);
-      const json = Exporter.toPortableJSON(url, comments, {
-        project,
-        pageTitle: doc.title || url,
-      });
+      const pages = await adapter.listProjectPages(project);
+      const projectPages = [];
+      for (const page of pages) {
+        projectPages.push({
+          url: page.url,
+          path: page.path,
+          comments: await adapter.getAnnotations(project, page.url),
+        });
+      }
+      const json = Exporter.toProjectJSON(project, projectPages);
       const ok = await Exporter.copyToClipboard(json);
-      panel.showToast(ok ? '✓ 標註資料已複製' : '✗ 複製失敗，請手動複製');
+      panel.showToast(ok ? `✓ 已複製 ${projectPages.length} 個頁面的專案資料` : '✗ 複製失敗，請手動複製');
     })
     .on('shareLink', async () => {
       const comments = await adapter.getAnnotations(project, url);

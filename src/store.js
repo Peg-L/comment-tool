@@ -174,6 +174,7 @@ export class CommentStore {
       elementLabel,
       text,
       meta,
+      done: false,
       createdAt: new Date().toISOString(),
     };
     this._data.comments.push(comment);
@@ -190,6 +191,13 @@ export class CommentStore {
 
   delete(id) {
     this._data.comments = this._data.comments.filter(c => c.id !== id);
+    this._save();
+  }
+
+  setDone(id, done) {
+    const comment = this._data.comments.find(c => c.id === id);
+    if (!comment) return;
+    comment.done = !!done;
     this._save();
   }
 
@@ -262,6 +270,10 @@ export class LocalAdapter {
 
   async deleteAnnotation(id, projectId, pageUrl) {
     new CommentStore(projectId, pageUrl).delete(id);
+  }
+
+  async setAnnotationDone(id, done, projectId, pageUrl) {
+    new CommentStore(projectId, pageUrl).setDone(id, done);
   }
 
   async clearAnnotations(projectId, pageUrl) {

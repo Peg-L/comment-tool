@@ -35,4 +35,29 @@ describe('Exporter portable data', () => {
     expect(Exporter.stripShareHash(shareUrl)).toBe('https://site.test/page#section');
     expect(Exporter.parsePortableText(shareUrl).comments).toEqual(comments);
   });
+
+  it('exports and parses complete project JSON with all pages', () => {
+    const json = Exporter.toProjectJSON('review', [
+      {
+        url: 'https://site.test/a',
+        path: '/a',
+        comments,
+      },
+      {
+        url: 'https://site.test/b',
+        path: '/b',
+        comments: [],
+      },
+    ]);
+
+    expect(Exporter.parsePortableText(json)).toMatchObject({
+      version: 1,
+      type: 'comment-tool-project',
+      project: 'review',
+      pages: [
+        { url: 'https://site.test/a', path: '/a', comments },
+        { url: 'https://site.test/b', path: '/b', comments: [] },
+      ],
+    });
+  });
 });
