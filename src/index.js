@@ -122,6 +122,7 @@ import { PanelUI } from './panel.js';
           elementLabel: lastDeleted.elementLabel,
           text: lastDeleted.text,
           meta: lastDeleted.meta,
+          viewportWidth: lastDeleted.viewportWidth,
         });
         lastDeleted = null;
         await refresh();
@@ -192,6 +193,7 @@ import { PanelUI } from './panel.js';
                   elementLabel: label,
                   text: result.text,
                   meta,
+                  viewportWidth: doc.defaultView.innerWidth,
                 });
                 await refresh();
               }
@@ -227,8 +229,10 @@ import { PanelUI } from './panel.js';
       }
     })
     .on('exportPrompt', async () => {
+      const PROMPT_EXCLUDE_STATUSES = ['已核准', '不調整'];
       const comments = await adapter.getAnnotations(project, url);
-      const prompt = Exporter.toPrompt(url, comments);
+      const filtered = comments.filter(c => !PROMPT_EXCLUDE_STATUSES.includes(c.status));
+      const prompt = Exporter.toPrompt(url, filtered);
       const ok = await Exporter.copyToClipboard(prompt);
       panel.showToast(ok ? '✓ Prompt 已複製到剪貼簿' : '✗ 複製失敗，請手動複製');
     })
@@ -245,6 +249,11 @@ import { PanelUI } from './panel.js';
       const json = Exporter.toProjectJSON(project, projectPages);
       const ok = await Exporter.copyToClipboard(json);
       panel.showToast(ok ? `✓ 已複製 ${projectPages.length} 個頁面的專案資料` : '✗ 複製失敗，請手動複製');
+    })
+    .on('clearAll', async () => {
+      await adapter.clearAnnotations(project, url);
+      await refresh();
+      panel.showToast('已清除全部標註');
     })
     .on('importData', async () => {
       const result = await panel.showImportDialog();

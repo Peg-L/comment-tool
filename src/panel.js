@@ -1,4 +1,6 @@
 // src/panel.js
+import { renderLiteMarkdown } from "./markdown-lite.js";
+
 const RED = "#ef4444";
 
 const CSS = `
@@ -255,8 +257,24 @@ iconify-icon { font-size: inherit; flex-shrink: 0; }
   font-size: 12px;
   color: #cdd6f4;
   word-break: break-word;
+  white-space: pre-wrap;
   padding-left: 24px;
   margin-bottom: 2px;
+}
+.comment-text code {
+  background: #313244;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-family: monospace;
+}
+.comment-width {
+  font-size: 10px;
+  background: #292a3d;
+  color: #a6adc8;
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-family: monospace;
+  flex-shrink: 0;
 }
 .comment-inner {
   font-size: 11px;
@@ -480,6 +498,77 @@ iconify-icon { font-size: inherit; flex-shrink: 0; }
 }
 .proj-page-del:hover { background: rgba(243,139,168,0.15); color: #f38ba8; }
 .proj-acc-empty { font-size: 11px; color: #6c7086; font-style: italic; padding: 2px 0; }
+/* ── Help dialog ── */
+.help-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: all;
+}
+.help-dialog {
+  background: #1e1e2e;
+  border: 1px solid #45475a;
+  border-radius: 10px;
+  width: 380px;
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+}
+.help-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid #313244;
+  flex-shrink: 0;
+}
+.help-header h3 { margin: 0; font-size: 15px; color: #cdd6f4; font-weight: 600; }
+.help-close-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #6c7086;
+  width: 28px;
+  height: 28px;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.help-close-btn:hover { background: rgba(243,139,168,0.15); color: #f38ba8; }
+.help-body {
+  padding: 4px 16px 16px;
+  overflow-y: auto;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #cdd6f4;
+}
+.help-body h4 {
+  margin: 14px 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #89b4fa;
+}
+.help-body h4:first-child { margin-top: 12px; }
+.help-body p { margin: 4px 0; color: #a6adc8; }
+.help-body ul { margin: 4px 0; padding-left: 18px; color: #a6adc8; }
+.help-body li { margin: 3px 0; }
+.help-body code {
+  background: #313244;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-family: monospace;
+}
 /* ── Pick group with switch toggle ── */
 .pick-group {
   display: inline-flex;
@@ -647,6 +736,12 @@ export class PanelUI {
       "btn-neutral",
       () => this._emit("importData"),
     );
+    const helpBtn = this._btn(
+      "mdi:help-circle-outline",
+      "使用說明",
+      "btn-neutral",
+      () => this._showHelpDialog(),
+    );
 
     tb.append(
       this._pickBtn,
@@ -654,6 +749,7 @@ export class PanelUI {
       exportBtn,
       copyDataBtn,
       importBtn,
+      helpBtn,
     );
     p.appendChild(tb);
 
@@ -706,6 +802,30 @@ export class PanelUI {
     // List header
     const listHdr = this._el("div", "list-header");
     listHdr.appendChild(this._el("span", "list-header-title", "標註清單"));
+
+    let clearConfirmTimer = null;
+    const clearAllBtn = this._btn(
+      "mdi:delete-sweep-outline",
+      "清除全部",
+      "btn-danger",
+      () => {
+        const label = clearAllBtn.querySelector("span");
+        if (clearConfirmTimer) {
+          clearTimeout(clearConfirmTimer);
+          clearConfirmTimer = null;
+          if (label) label.textContent = "清除全部";
+          this._emit("clearAll");
+          return;
+        }
+        if (label) label.textContent = "確定清除？";
+        clearConfirmTimer = setTimeout(() => {
+          clearConfirmTimer = null;
+          if (label) label.textContent = "清除全部";
+        }, 3500);
+      },
+    );
+    listHdr.appendChild(clearAllBtn);
+
     p.appendChild(listHdr);
 
     // List
@@ -851,6 +971,10 @@ export class PanelUI {
       hdr.appendChild(badge);
       if (meta.tagName)
         hdr.appendChild(this._el("span", "comment-tag", meta.tagName));
+      if (c.viewportWidth)
+        hdr.appendChild(
+          this._el("span", "comment-width", `📐 ${c.viewportWidth}px`),
+        );
       const label = this._el(
         "span",
         "comment-label",
@@ -860,7 +984,8 @@ export class PanelUI {
       hdr.appendChild(label);
 
       // Comment text
-      const textEl = this._el("div", "comment-text", c.text);
+      const textEl = this._el("div", "comment-text");
+      textEl.innerHTML = renderLiteMarkdown(c.text);
 
       item.append(hdr, textEl);
 
@@ -1194,6 +1319,93 @@ export class PanelUI {
         e.stopPropagation();
       });
     });
+  }
+
+  _showHelpDialog() {
+    const backdrop = this._el("div", "help-backdrop");
+    const dialog = this._el("div", "help-dialog");
+
+    const header = this._el("div", "help-header");
+    header.appendChild(this._el("h3", null, "使用說明"));
+    const closeBtn = this._doc.createElement("button");
+    closeBtn.className = "help-close-btn";
+    closeBtn.setAttribute("aria-label", "關閉");
+    closeBtn.textContent = "✕";
+    header.appendChild(closeBtn);
+    dialog.appendChild(header);
+
+    const body = this._el("div", "help-body");
+    body.innerHTML = `
+      <h4>基本操作</h4>
+      <ul>
+        <li>點「選取元素」進入選取模式，點擊頁面上的元素即可新增標註</li>
+        <li>點擊頁面上已標註元素的紅色編號徽章，可開啟編輯</li>
+        <li>點擊標註清單裡的項目，會捲動到對應元素並閃爍提示</li>
+        <li>快捷鍵 <code>Alt+C</code> 可收合／展開面板</li>
+      </ul>
+
+      <h4>標註格式（輕量 Markdown）</h4>
+      <ul>
+        <li><code>**文字**</code> → <strong>粗體</strong></li>
+        <li><code>\`文字\`</code> → 行內程式碼樣式</li>
+        <li>行首打 <code>- </code> → 清單項目（顯示為 •）</li>
+        <li>直接按 Enter 換行即可正常顯示，不用特殊語法</li>
+      </ul>
+
+      <h4>狀態與篩選</h4>
+      <ul>
+        <li>每則標註可用下拉選單設定狀態：尚未開始／進行中／審核中／已核准／不調整／待確認／暫緩</li>
+        <li>清單上方的篩選 pill 可個別勾選要顯示的狀態；點「全部」可一次全選或全部取消</li>
+        <li>「已核准」「不調整」「暫緩」會自動排到清單最下方並變淡顯示</li>
+      </ul>
+
+      <h4>複製 Prompt</h4>
+      <ul>
+        <li>把目前頁面的標註整理成給 AI 看的文字（含目標選取器、元素資訊、標註內容），複製到剪貼簿</li>
+        <li>狀態為「已核准」「不調整」的標註不會被複製，避免已處理完的項目重複交代給 AI</li>
+      </ul>
+
+      <h4>複製資料</h4>
+      <ul>
+        <li>把目前「整個專案」（所有頁面）的完整標註資料打包成 JSON 複製到剪貼簿</li>
+        <li>內容包含每則標註的選取器、內文、狀態、建立時間等，用途是備份，或搬到別台裝置／瀏覽器繼續標註</li>
+      </ul>
+
+      <h4>貼上資料</h4>
+      <ul>
+        <li>把「複製資料」產生的 JSON 貼進對話框即可匯入還原</li>
+        <li>若目前頁面或專案已有標註，會先詢問是否覆蓋，避免誤蓋既有資料</li>
+      </ul>
+
+      <h4>清除全部</h4>
+      <ul>
+        <li>清除目前頁面的所有標註</li>
+        <li>需點擊兩次：第一次按鈕文字會變成「確定清除？」，幾秒內沒再點會自動取消，避免手滑誤刪</li>
+      </ul>
+
+      <h4>頁面清單</h4>
+      <ul>
+        <li>面板上方「頁面清單」可切換到同一專案下曾經標註過的其他頁面</li>
+      </ul>
+    `;
+    dialog.appendChild(body);
+
+    backdrop.appendChild(dialog);
+
+    const close = () => backdrop.remove();
+    closeBtn.addEventListener("click", close);
+    backdrop.addEventListener("click", (e) => {
+      if (e.target === backdrop) close();
+    });
+    const escHandler = (e) => {
+      if (e.key === "Escape") {
+        close();
+        this._doc.removeEventListener("keydown", escHandler, true);
+      }
+    };
+    this._doc.addEventListener("keydown", escHandler, true);
+
+    this._shadow.appendChild(backdrop);
   }
 
   unmount() {

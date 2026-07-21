@@ -162,13 +162,14 @@ export class CommentStore {
     return this._data.comments;
   }
 
-  add(selector, elementLabel, text, meta = {}) {
+  add(selector, elementLabel, text, meta = {}, viewportWidth) {
     const comment = {
       id: generateId(),
       selector,
       elementLabel,
       text,
       meta,
+      viewportWidth,
       status: '尚未開始',
       done: false,
       createdAt: new Date().toISOString(),
@@ -257,9 +258,9 @@ export class LocalAdapter {
     return new CommentStore(projectId, pageUrl).getAll();
   }
 
-  async addAnnotation(projectId, pageUrl, _pageTitle, { selector, elementLabel, text, meta }) {
+  async addAnnotation(projectId, pageUrl, _pageTitle, { selector, elementLabel, text, meta, viewportWidth }) {
     const cs = new CommentStore(projectId, pageUrl);
-    return cs.add(selector, elementLabel, text, meta);
+    return cs.add(selector, elementLabel, text, meta, viewportWidth);
   }
 
   async updateAnnotation(id, text, projectId, pageUrl) {
