@@ -100,6 +100,12 @@ export function deleteProject(name) {
   _saveProjectList(_getProjectList().filter(p => p !== name));
 }
 
+/** Remove a single page's annotations from a project. */
+export function deleteProjectPage(projectName, pageUrl) {
+  const key = projectPageKey(projectName, pageUrl);
+  localStorage.removeItem(key);
+}
+
 /** Rename a project and move all page annotations under the new name. */
 export function renameProject(oldName, newName) {
   const from = (oldName || '').trim();
